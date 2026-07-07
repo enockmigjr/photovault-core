@@ -14,14 +14,59 @@ function photovault_register_rest_routes() {
 		'methods'             => WP_REST_Server::READABLE,
 		'callback'            => 'photovault_get_filtered_media',
 		'permission_callback' => 'is_user_logged_in',
+		'args'                => array(
+			'page'      => array( 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_optional_positive_int' ),
+			'folder'    => array( 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_optional_positive_int' ),
+			'category'  => array( 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_optional_positive_int' ),
+			'author_id' => array( 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_optional_positive_int' ),
+			'year'      => array( 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_optional_positive_int' ),
+			'month'     => array( 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_month' ),
+			'protected' => array( 'sanitize_callback' => 'sanitize_key', 'validate_callback' => 'photovault_validate_binary_filter' ),
+			'orderby'   => array( 'sanitize_callback' => 'sanitize_key', 'validate_callback' => 'photovault_validate_media_orderby' ),
+			'search'    => array( 'sanitize_callback' => 'sanitize_text_field' ),
+		),
 	) );
 	register_rest_route( 'photovault/v1', '/secure-image', array(
 		'methods'             => WP_REST_Server::READABLE,
 		'callback'            => 'photovault_serve_secure_image',
 		'permission_callback' => '__return_true',
+		'args'                => array(
+			'id'       => array( 'required' => true, 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_positive_int' ),
+			'display'  => array( 'sanitize_callback' => 'sanitize_key', 'validate_callback' => 'photovault_validate_image_display' ),
+			'download' => array( 'sanitize_callback' => 'sanitize_key', 'validate_callback' => 'photovault_validate_binary_filter' ),
+		),
 	) );
 }
 add_action( 'rest_api_init', 'photovault_register_rest_routes' );
+
+function photovault_validate_positive_int( $value ) {
+	return absint( $value ) > 0;
+}
+
+function photovault_validate_optional_positive_int( $value ) {
+	return '' === $value || null === $value || absint( $value ) > 0;
+}
+
+function photovault_validate_month( $value ) {
+	if ( '' === $value || null === $value ) {
+		return true;
+	}
+
+	$month = absint( $value );
+	return $month >= 1 && $month <= 12;
+}
+
+function photovault_validate_binary_filter( $value ) {
+	return '' === $value || null === $value || in_array( (string) $value, array( '0', '1' ), true );
+}
+
+function photovault_validate_media_orderby( $value ) {
+	return '' === $value || null === $value || in_array( sanitize_key( $value ), array( 'date_desc', 'date_asc', 'alphabetical' ), true );
+}
+
+function photovault_validate_image_display( $value ) {
+	return '' === $value || null === $value || in_array( sanitize_key( $value ), array( 'card', 'preview' ), true );
+}
 
 /**
  * Construire une URL d'image protegee en indiquant l'usage attendu.
@@ -93,6 +138,10 @@ function photovault_get_file_mime_type( $path, $attachment_id ) {
 }
 
 function photovault_get_filtered_media( $request ) {
+	if ( function_exists( 'photovault_rate_limit' ) && ! photovault_rate_limit( 'media_filter', 90, 60 ) ) {
+		return new WP_Error( 'too_many_requests', 'Trop de requetes. Veuillez patienter.', array( 'status' => 429 ) );
+	}
+
 	$params = $request->get_params();
 	$args = array(
 		'post_type'      => 'media_item',
@@ -174,6 +223,10 @@ function photovault_get_filtered_media( $request ) {
 }
 
 function photovault_serve_secure_image( $request ) {
+	if ( function_exists( 'photovault_rate_limit' ) && ! photovault_rate_limit( 'secure_image', 240, 60 ) ) {
+		return new WP_Error( 'too_many_requests', 'Trop de requetes. Veuillez patienter.', array( 'status' => 429 ) );
+	}
+
 	if ( 0 === get_current_user_id() ) {
 		$cookie_user_id = wp_validate_auth_cookie( '', 'logged_in' );
 		if ( $cookie_user_id ) {
@@ -208,6 +261,11 @@ function photovault_serve_secure_image( $request ) {
 	$is_protected = get_post_meta( $media_id, 'is_protected', true ) === '1';
 
 	if ( $request->get_param( 'download' ) === '1' ) {
+		$nonce = sanitize_text_field( (string) $request->get_param( '_wpnonce' ) );
+		if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+			return new WP_Error( 'forbidden', 'Lien de telechargement invalide.', array( 'status' => 403 ) );
+		}
+
 		if ( ! is_user_logged_in() ) {
 			return new WP_Error( 'unauthorized', 'Vous devez etre connecte pour telecharger des medias.', array( 'status' => 401 ) );
 		}

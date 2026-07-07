@@ -33,6 +33,24 @@ if ( ! function_exists( 'photovault_user_can' ) ) {
 	}
 }
 
+
+if ( ! function_exists( 'photovault_rate_limit' ) ) {
+	function photovault_rate_limit( $bucket, $limit = 120, $window = 60 ) {
+		$bucket = sanitize_key( $bucket );
+		$user_id = get_current_user_id();
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ) ) : 'unknown';
+		$subject = $user_id > 0 ? 'u' . $user_id : 'ip' . wp_hash( $ip );
+		$key = 'pv_rl_' . $bucket . '_' . md5( $subject );
+		$count = (int) get_transient( $key );
+
+		if ( $count >= $limit ) {
+			return false;
+		}
+
+		set_transient( $key, $count + 1, absint( $window ) );
+		return true;
+	}
+}
 if ( ! function_exists( 'photovault_get_photographer_stats' ) ) {
 	function photovault_get_photographer_stats( $user_id = 0 ) {
 		$cache_key = $user_id > 0 ? 'pv_stats_' . $user_id : 'pv_stats_global';
@@ -69,7 +87,7 @@ if ( ! function_exists( 'photovault_get_photographer_stats' ) ) {
 				'fields'         => 'ids',
 			);
 
-			if ( $user_id > 0 && ! user_can( $user_id, 'manage_options' ) ) {
+			if ( $user_id > 0 && ! photovault_user_can( $user_id, 'photovault_manage_platform' ) ) {
 				$args_all['author'] = $user_id;
 			}
 
