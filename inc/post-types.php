@@ -211,7 +211,7 @@ function photovault_register_settings_menu() {
 		'edit.php?post_type=media_item',
 		__( 'Réglages PhotoVault', 'photovault' ),
 		__( 'Réglages', 'photovault' ),
-		'manage_options',
+		'photovault_manage_settings',
 		'photovault-settings',
 		'photovault_render_settings_page'
 	);

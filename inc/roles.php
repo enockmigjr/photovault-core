@@ -17,6 +17,13 @@ function photovault_register_roles() {
 	remove_role( 'photographer' );
 
 	// Vérifier si le rôle 'client' existe déjà avant de le créer (évite les pertes de privilèges personnalisés).
+
+	$admin = get_role( 'administrator' );
+	if ( $admin && function_exists( 'photovault_get_core_capabilities' ) ) {
+		foreach ( photovault_get_core_capabilities() as $capability ) {
+			$admin->add_cap( $capability );
+		}
+	}
 	if ( null === get_role( 'client' ) ) {
 		add_role( 'client', esc_html__( 'Client', 'photovault' ), array(
 			'read'         => true,
@@ -38,7 +45,7 @@ function photovault_restrict_admin_access() {
 	}
 
 	if ( is_user_logged_in() ) {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! photovault_current_user_can( 'photovault_manage_platform' ) ) {
 			wp_safe_redirect( home_url() );
 			exit;
 		}
@@ -76,7 +83,7 @@ add_action( 'init', 'photovault_redirect_login_page' );
  * Cacher la barre d'administration pour les utilisateurs non-administrateurs et visiteurs.
  */
 function photovault_hide_admin_bar() {
-	if ( ! current_user_can( 'manage_options' ) ) {
+	if ( ! photovault_current_user_can( 'photovault_manage_platform' ) ) {
 		show_admin_bar( false );
 	}
 }

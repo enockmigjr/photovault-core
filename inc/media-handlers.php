@@ -139,7 +139,7 @@ function photovault_handle_media_delete() {
 		}
 
 		// Sécurité : Vérifier que l'utilisateur est le propriétaire ou admin.
-		if ( intval( $post->post_author ) !== get_current_user_id() && ! current_user_can( 'manage_options' ) ) {
+		if ( intval( $post->post_author ) !== get_current_user_id() && ! photovault_current_user_can( 'photovault_manage_media' ) ) {
 			wp_die( esc_html__( 'Vous n\'êtes pas autorisé à supprimer ce média.', 'photovault' ) );
 		}
 

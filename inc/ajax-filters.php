@@ -100,7 +100,7 @@ function photovault_get_filtered_media( $request ) {
 		'paged'          => ! empty( $params['page'] ) ? intval( $params['page'] ) : 1,
 	);
 
-	if ( current_user_can( 'manage_options' ) ) {
+	if ( photovault_current_user_can( 'photovault_manage_media' ) ) {
 		$args['post_status'] = array( 'publish', 'private' );
 	} else {
 		$args['post_status'] = array( 'publish' );
@@ -147,7 +147,7 @@ function photovault_get_filtered_media( $request ) {
 		while ( $query->have_posts() ) {
 			$query->the_post();
 
-			if ( 'private' === get_post_status() && ! current_user_can( 'manage_options' ) ) {
+			if ( 'private' === get_post_status() && ! photovault_current_user_can( 'photovault_manage_media' ) ) {
 				continue;
 			}
 
@@ -188,7 +188,7 @@ function photovault_serve_secure_image( $request ) {
 	}
 
 	$is_private = 'private' === $post->post_status;
-	$is_admin = current_user_can( 'manage_options' );
+	$is_admin = photovault_current_user_can( 'photovault_manage_media' );
 	$is_owner = is_user_logged_in() && (int) $post->post_author === get_current_user_id();
 
 	if ( $is_private && ! $is_admin && ! $is_owner ) {

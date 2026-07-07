@@ -9,6 +9,30 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+
+if ( ! function_exists( 'photovault_get_core_capabilities' ) ) {
+	function photovault_get_core_capabilities() {
+		return array(
+			'photovault_manage_platform',
+			'photovault_manage_media',
+			'photovault_view_private_media',
+			'photovault_manage_settings',
+		);
+	}
+}
+
+if ( ! function_exists( 'photovault_current_user_can' ) ) {
+	function photovault_current_user_can( $capability ) {
+		return current_user_can( $capability ) || current_user_can( 'manage_options' );
+	}
+}
+
+if ( ! function_exists( 'photovault_user_can' ) ) {
+	function photovault_user_can( $user_id, $capability ) {
+		return user_can( $user_id, $capability ) || user_can( $user_id, 'manage_options' );
+	}
+}
+
 if ( ! function_exists( 'photovault_get_photographer_stats' ) ) {
 	function photovault_get_photographer_stats( $user_id = 0 ) {
 		$cache_key = $user_id > 0 ? 'pv_stats_' . $user_id : 'pv_stats_global';
@@ -101,7 +125,7 @@ if ( ! function_exists( 'photovault_inject_protection_script' ) ) {
 		$media_id = get_the_ID();
 		$is_protected = get_post_meta( $media_id, 'is_protected', true ) === '1';
 		$post = get_post( $media_id );
-		$is_admin = current_user_can( 'manage_options' );
+		$is_admin = photovault_current_user_can( 'photovault_manage_media' );
 		$is_owner = $post && is_user_logged_in() && (int) $post->post_author === get_current_user_id();
 
 		if ( ! $is_protected || $is_admin || $is_owner ) {

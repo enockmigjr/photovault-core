@@ -36,7 +36,7 @@ function photovault_handle_login() {
 	}
 
 	// Redirection en fonction du rôle
-	if ( current_user_can( 'manage_options' ) ) {
+	if ( photovault_current_user_can( 'photovault_manage_media' ) ) {
 		wp_redirect( home_url( '/dashboard/' ) );
 	} else {
 		wp_redirect( get_post_type_archive_link( 'media_item' ) );
