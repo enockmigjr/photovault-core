@@ -9,6 +9,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+function photovault_harden_upload_directory( $path ) {
+	if ( empty( $path ) ) {
+		return;
+	}
+
+	if ( ! wp_mkdir_p( $path ) ) {
+		return;
+	}
+
+	$index_file = trailingslashit( $path ) . 'index.php';
+	if ( ! file_exists( $index_file ) ) {
+		file_put_contents( $index_file, "<?php\n// Silence is golden.\n" );
+	}
+
+	$htaccess_file = trailingslashit( $path ) . '.htaccess';
+	if ( ! file_exists( $htaccess_file ) ) {
+		$rules = "Options -Indexes\n<IfModule mod_authz_core.c>\n\tRequire all denied\n</IfModule>\n<IfModule !mod_authz_core.c>\n\tDeny from all\n</IfModule>\n";
+		file_put_contents( $htaccess_file, $rules );
+	}
+}
 /**
  * Isolate non-admin uploads in a user-specific directory.
  */
@@ -18,6 +38,7 @@ function photovault_custom_upload_dir( $uploads ) {
 		$uploads['path']   = $uploads['basedir'] . '/photographers/user_' . $user_id;
 		$uploads['url']    = $uploads['baseurl'] . '/photographers/user_' . $user_id;
 		$uploads['subdir'] = '/photographers/user_' . $user_id;
+		photovault_harden_upload_directory( $uploads['path'] );
 	}
 
 	return $uploads;
