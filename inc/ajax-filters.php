@@ -223,7 +223,13 @@ function photovault_get_filtered_media( $request ) {
 }
 
 function photovault_serve_secure_image( $request ) {
+	$media_id = intval( $request->get_param( 'id' ) );
+
 	if ( function_exists( 'photovault_rate_limit' ) && ! photovault_rate_limit( 'secure_image', 240, 60 ) ) {
+		if ( function_exists( 'photovault_log_media_event' ) ) {
+			photovault_log_media_event( 'secure_image_rate_limited', 'warning', $media_id, array( 'display' => sanitize_key( $request->get_param( 'display' ) ) ) );
+		}
+
 		return new WP_Error( 'too_many_requests', 'Trop de requetes. Veuillez patienter.', array( 'status' => 429 ) );
 	}
 
@@ -234,9 +240,12 @@ function photovault_serve_secure_image( $request ) {
 		}
 	}
 
-	$media_id = intval( $request->get_param( 'id' ) );
 	$post = get_post( $media_id );
 	if ( ! $post || 'media_item' !== $post->post_type ) {
+		if ( function_exists( 'photovault_log_media_event' ) ) {
+			photovault_log_media_event( 'media_not_found', 'warning', $media_id );
+		}
+
 		return new WP_Error( 'not_found', 'Media introuvable.', array( 'status' => 404 ) );
 	}
 
@@ -245,6 +254,10 @@ function photovault_serve_secure_image( $request ) {
 	$is_owner = is_user_logged_in() && (int) $post->post_author === get_current_user_id();
 
 	if ( $is_private && function_exists( 'photovault_user_can_access_media' ) && ! photovault_user_can_access_media( $media_id, get_current_user_id() ) ) {
+		if ( function_exists( 'photovault_log_media_event' ) ) {
+			photovault_log_media_event( 'access_denied', 'warning', $media_id, array( 'reason' => 'private_media', 'display' => sanitize_key( $request->get_param( 'display' ) ) ) );
+		}
+
 		return new WP_Error( 'forbidden', 'Acces interdit.', array( 'status' => 403 ) );
 	}
 
@@ -263,23 +276,43 @@ function photovault_serve_secure_image( $request ) {
 	if ( $request->get_param( 'download' ) === '1' ) {
 		$nonce = sanitize_text_field( (string) $request->get_param( '_wpnonce' ) );
 		if ( ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+			if ( function_exists( 'photovault_log_media_event' ) ) {
+				photovault_log_media_event( 'access_denied', 'warning', $media_id, array( 'reason' => 'invalid_download_nonce' ) );
+			}
+
 			return new WP_Error( 'forbidden', 'Lien de telechargement invalide.', array( 'status' => 403 ) );
 		}
 
 		if ( ! is_user_logged_in() ) {
+			if ( function_exists( 'photovault_log_media_event' ) ) {
+				photovault_log_media_event( 'access_denied', 'warning', $media_id, array( 'reason' => 'download_requires_login' ) );
+			}
+
 			return new WP_Error( 'unauthorized', 'Vous devez etre connecte pour telecharger des medias.', array( 'status' => 401 ) );
 		}
 
 		if ( ! $is_admin && ! photovault_user_has_verified_identity( get_current_user_id() ) ) {
+			if ( function_exists( 'photovault_log_media_event' ) ) {
+				photovault_log_media_event( 'access_denied', 'warning', $media_id, array( 'reason' => 'email_unverified_download' ) );
+			}
+
 			return new WP_Error( 'email_unverified', 'Verifiez votre adresse e-mail avant de telecharger un original.', array( 'status' => 403 ) );
 		}
 
 		if ( $is_protected && ! $is_admin && ! $is_owner ) {
+			if ( function_exists( 'photovault_log_media_event' ) ) {
+				photovault_log_media_event( 'access_denied', 'warning', $media_id, array( 'reason' => 'protected_download_forbidden' ) );
+			}
+
 			return new WP_Error( 'forbidden', 'Telechargement interdit sur un media protege.', array( 'status' => 403 ) );
 		}
 
 		$downloads = (int) get_post_meta( $media_id, 'photovault_downloads_count', true );
 		update_post_meta( $media_id, 'photovault_downloads_count', $downloads + 1 );
+
+		if ( function_exists( 'photovault_log_media_event' ) ) {
+			photovault_log_media_event( 'media_download', 'success', $media_id, array( 'protected' => $is_protected, 'owner' => $is_owner, 'admin' => $is_admin ) );
+		}
 
 		$mime = photovault_get_file_mime_type( $original_path, $thumb_id );
 		header( 'Content-Description: File Transfer' );
@@ -307,6 +340,10 @@ function photovault_serve_secure_image( $request ) {
 
 	if ( ! $filepath || ! file_exists( $filepath ) ) {
 		return new WP_Error( 'not_found', 'Fichier introuvable.', array( 'status' => 404 ) );
+	}
+
+	if ( function_exists( 'photovault_log_media_event' ) ) {
+		photovault_log_media_event( $is_protected && ! $is_admin && ! $is_owner ? 'protected_preview_served' : 'media_preview_served', 'info', $media_id, array( 'display' => $display, 'protected' => $is_protected ) );
 	}
 
 	header( 'Content-Type: ' . $mime );

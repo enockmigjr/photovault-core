@@ -131,7 +131,12 @@ function photovault_create_access_request( $data ) {
 		return new WP_Error( 'db_insert_failed', __( 'La demande n a pas pu etre enregistree.', 'photovault' ) );
 	}
 
-	return absint( $wpdb->insert_id );
+	$request_id = absint( $wpdb->insert_id );
+	if ( function_exists( 'photovault_log_media_event' ) ) {
+		photovault_log_media_event( 'access_request_created', 'info', 0, array( 'request_id' => $request_id, 'has_collection' => '' !== $collection, 'user_id' => get_current_user_id() ?: 0 ) );
+	}
+
+	return $request_id;
 }
 
 function photovault_find_access_folder_from_request( $request ) {
@@ -158,11 +163,19 @@ function photovault_create_access_grant_from_request( $request_id ) {
 	);
 
 	if ( ! $request ) {
+		if ( function_exists( 'photovault_log_media_event' ) ) {
+			photovault_log_media_event( 'access_grant_failed', 'warning', 0, array( 'request_id' => $request_id, 'reason' => 'request_not_found' ) );
+		}
+
 		return new WP_Error( 'not_found', __( 'Demande introuvable.', 'photovault' ) );
 	}
 
 	$folder = photovault_find_access_folder_from_request( $request );
 	if ( ! $folder ) {
+		if ( function_exists( 'photovault_log_media_event' ) ) {
+			photovault_log_media_event( 'access_grant_failed', 'warning', 0, array( 'request_id' => $request_id, 'reason' => 'folder_not_found' ) );
+		}
+
 		return new WP_Error( 'folder_not_found', __( 'Aucun dossier media_folder ne correspond a cette collection.', 'photovault' ) );
 	}
 
@@ -197,6 +210,10 @@ function photovault_create_access_grant_from_request( $request_id ) {
 			array( '%d' )
 		);
 
+		if ( function_exists( 'photovault_log_media_event' ) ) {
+			photovault_log_media_event( 'access_grant_created', 'success', 0, array( 'request_id' => $request_id, 'grant_id' => absint( $existing_id ), 'folder_id' => absint( $folder->term_id ), 'updated_existing' => true, 'user_id' => $user_id ) );
+		}
+
 		return absint( $existing_id );
 	}
 
@@ -216,10 +233,19 @@ function photovault_create_access_grant_from_request( $request_id ) {
 	);
 
 	if ( false === $inserted ) {
+		if ( function_exists( 'photovault_log_media_event' ) ) {
+			photovault_log_media_event( 'access_grant_failed', 'error', 0, array( 'request_id' => $request_id, 'reason' => 'db_insert_failed', 'folder_id' => absint( $folder->term_id ) ) );
+		}
+
 		return new WP_Error( 'grant_failed', __( 'Acces approuve mais grant non cree.', 'photovault' ) );
 	}
 
-	return absint( $wpdb->insert_id );
+	$grant_id = absint( $wpdb->insert_id );
+	if ( function_exists( 'photovault_log_media_event' ) ) {
+		photovault_log_media_event( 'access_grant_created', 'success', 0, array( 'request_id' => $request_id, 'grant_id' => $grant_id, 'folder_id' => absint( $folder->term_id ), 'updated_existing' => false, 'user_id' => $user_id ) );
+	}
+
+	return $grant_id;
 }
 
 function photovault_user_can_access_media( $media_id, $user_id = 0 ) {
@@ -423,6 +449,10 @@ function photovault_handle_access_request_status_update() {
 		if ( is_wp_error( $grant ) ) {
 			$updated = 'folder_not_found' === $grant->get_error_code() ? 'grant_missing_folder' : 'grant_failed';
 		}
+	}
+
+	if ( function_exists( 'photovault_log_media_event' ) ) {
+		photovault_log_media_event( 'access_request_status_updated', 'info', 0, array( 'request_id' => $request_id, 'new_status' => $new_status, 'grant_result' => $updated ) );
 	}
 
 	$wpdb->update(

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PhotoVault Core
  * Description: Core application layer for PhotoVault media, access rules, REST endpoints, roles, and statistics.
- * Version: 0.1.9
+ * Version: 0.1.10
  * Author: PhotoVault
  * Text Domain: photovault
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PHOTOVAULT_CORE_VERSION', '0.1.9' );
+define( 'PHOTOVAULT_CORE_VERSION', '0.1.10' );
 define( 'PHOTOVAULT_CORE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PHOTOVAULT_CORE_URI', plugin_dir_url( __FILE__ ) );
 
@@ -23,6 +23,7 @@ $photovault_core_includes = array(
 	'inc/ajax-filters.php',
 	'inc/helpers.php',
 	'inc/admin-access.php',
+	'inc/audit-log.php',
 	'inc/access-requests.php',
 );
 
@@ -46,6 +47,9 @@ function photovault_core_activate() {
 	if ( function_exists( 'photovault_install_access_request_schema' ) ) {
 		photovault_install_access_request_schema();
 	}
+	if ( function_exists( 'photovault_install_media_audit_schema' ) ) {
+		photovault_install_media_audit_schema();
+	}
 	update_option( 'photovault_core_version', PHOTOVAULT_CORE_VERSION, false );
 	flush_rewrite_rules();
 }
@@ -58,6 +62,9 @@ function photovault_core_maybe_upgrade() {
 
 	if ( function_exists( 'photovault_install_access_request_schema' ) ) {
 		photovault_install_access_request_schema();
+	}
+	if ( function_exists( 'photovault_install_media_audit_schema' ) ) {
+		photovault_install_media_audit_schema();
 	}
 
 	update_option( 'photovault_core_version', PHOTOVAULT_CORE_VERSION, false );
