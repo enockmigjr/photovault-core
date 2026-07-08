@@ -76,9 +76,13 @@ function photovault_store_attachment_original_private( $attachment_id, $media_id
 		return new WP_Error( 'source_missing', __( 'Fichier original introuvable sur le disque.', 'photovault' ) );
 	}
 
-	$target_dir = trailingslashit( photovault_get_private_originals_dir() ) . gmdate( 'Y/m' );
-	if ( ! photovault_harden_private_storage_directory( $target_dir ) ) {
-		return new WP_Error( 'private_storage_unavailable', __( 'Stockage prive indisponible.', 'photovault' ) );
+	$base_dir   = photovault_get_private_originals_dir();
+	$year_dir   = trailingslashit( $base_dir ) . gmdate( 'Y' );
+	$target_dir = trailingslashit( $year_dir ) . gmdate( 'm' );
+	foreach ( array( $base_dir, $year_dir, $target_dir ) as $private_dir ) {
+		if ( ! photovault_harden_private_storage_directory( $private_dir ) ) {
+			return new WP_Error( 'private_storage_unavailable', __( 'Stockage prive indisponible.', 'photovault' ) );
+		}
 	}
 
 	$extension = pathinfo( $source, PATHINFO_EXTENSION );
