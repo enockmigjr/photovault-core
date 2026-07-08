@@ -149,7 +149,7 @@ function photovault_get_filtered_media( $request ) {
 		'paged'          => ! empty( $params['page'] ) ? intval( $params['page'] ) : 1,
 	);
 
-	if ( photovault_current_user_can( 'photovault_manage_media' ) ) {
+	if ( photovault_current_user_can( 'photovault_manage_media' ) || is_user_logged_in() ) {
 		$args['post_status'] = array( 'publish', 'private' );
 	} else {
 		$args['post_status'] = array( 'publish' );
@@ -196,7 +196,7 @@ function photovault_get_filtered_media( $request ) {
 		while ( $query->have_posts() ) {
 			$query->the_post();
 
-			if ( 'private' === get_post_status() && ! photovault_current_user_can( 'photovault_manage_media' ) ) {
+			if ( 'private' === get_post_status() && function_exists( 'photovault_user_can_access_media' ) && ! photovault_user_can_access_media( get_the_ID(), get_current_user_id() ) ) {
 				continue;
 			}
 
@@ -244,12 +244,8 @@ function photovault_serve_secure_image( $request ) {
 	$is_admin = photovault_current_user_can( 'photovault_manage_media' );
 	$is_owner = is_user_logged_in() && (int) $post->post_author === get_current_user_id();
 
-	if ( $is_private && ! $is_admin && ! $is_owner ) {
+	if ( $is_private && function_exists( 'photovault_user_can_access_media' ) && ! photovault_user_can_access_media( $media_id, get_current_user_id() ) ) {
 		return new WP_Error( 'forbidden', 'Acces interdit.', array( 'status' => 403 ) );
-	}
-
-	if ( $is_private && ! $is_admin && ! photovault_user_has_verified_identity( get_current_user_id() ) ) {
-		return new WP_Error( 'email_unverified', 'Adresse e-mail non verifiee.', array( 'status' => 403 ) );
 	}
 
 	$thumb_id = get_post_thumbnail_id( $media_id );

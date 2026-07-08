@@ -15,16 +15,23 @@ function photovault_get_access_requests_table() {
 	return $wpdb->prefix . 'photovault_access_requests';
 }
 
+function photovault_get_access_grants_table() {
+	global $wpdb;
+
+	return $wpdb->prefix . 'photovault_access_grants';
+}
+
 function photovault_install_access_request_schema() {
 	global $wpdb;
 
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-	$table_name      = photovault_get_access_requests_table();
+	$requests_table  = photovault_get_access_requests_table();
+	$grants_table    = photovault_get_access_grants_table();
 	$charset_collate = $wpdb->get_charset_collate();
-	$sql             = "CREATE TABLE {$table_name} (
+	$requests_sql    = "CREATE TABLE {$requests_table} (
 		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-		user_id bigint(20) unsigned NULL,
+		user_id bigint(20) unsigned NOT NULL DEFAULT 0,
 		name varchar(120) NOT NULL,
 		email varchar(190) NOT NULL,
 		subject varchar(190) NOT NULL,
@@ -42,7 +49,30 @@ function photovault_install_access_request_schema() {
 		KEY created_at (created_at)
 	) {$charset_collate};";
 
-	dbDelta( $sql );
+	$grants_sql = "CREATE TABLE {$grants_table} (
+		id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+		request_id bigint(20) unsigned NULL,
+		user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+		email_hash char(64) NOT NULL,
+		folder_id bigint(20) unsigned NOT NULL,
+		status varchar(24) NOT NULL DEFAULT 'active',
+		created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+		created_at datetime NOT NULL,
+		updated_at datetime NOT NULL,
+		PRIMARY KEY  (id),
+		KEY request_id (request_id),
+		KEY user_id (user_id),
+		KEY email_hash (email_hash),
+		KEY folder_id (folder_id),
+		KEY status (status)
+	) {$charset_collate};";
+
+	dbDelta( $requests_sql );
+	dbDelta( $grants_sql );
+}
+
+function photovault_hash_access_email( $email ) {
+	return hash_hmac( 'sha256', strtolower( trim( sanitize_email( $email ) ) ), wp_salt( 'auth' ) );
 }
 
 function photovault_get_access_request_ip_hash() {
@@ -102,6 +132,142 @@ function photovault_create_access_request( $data ) {
 	}
 
 	return absint( $wpdb->insert_id );
+}
+
+function photovault_find_access_folder_from_request( $request ) {
+	$collection = isset( $request['collection'] ) ? trim( (string) $request['collection'] ) : '';
+	if ( '' === $collection ) {
+		return null;
+	}
+
+	$term = get_term_by( 'name', $collection, 'media_folder' );
+	if ( ! $term ) {
+		$term = get_term_by( 'slug', sanitize_title( $collection ), 'media_folder' );
+	}
+
+	return $term && ! is_wp_error( $term ) ? $term : null;
+}
+
+function photovault_create_access_grant_from_request( $request_id ) {
+	global $wpdb;
+
+	$request_id = absint( $request_id );
+	$request    = $wpdb->get_row(
+		$wpdb->prepare( "SELECT * FROM " . photovault_get_access_requests_table() . " WHERE id = %d LIMIT 1", $request_id ),
+		ARRAY_A
+	);
+
+	if ( ! $request ) {
+		return new WP_Error( 'not_found', __( 'Demande introuvable.', 'photovault' ) );
+	}
+
+	$folder = photovault_find_access_folder_from_request( $request );
+	if ( ! $folder ) {
+		return new WP_Error( 'folder_not_found', __( 'Aucun dossier media_folder ne correspond a cette collection.', 'photovault' ) );
+	}
+
+	$email_hash = photovault_hash_access_email( $request['email'] );
+	$user_id    = absint( $request['user_id'] );
+	$user       = get_user_by( 'email', $request['email'] );
+	if ( $user ) {
+		$user_id = absint( $user->ID );
+	}
+
+	$now          = gmdate( 'Y-m-d H:i:s' );
+	$grants_table = photovault_get_access_grants_table();
+	$existing_id  = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT id FROM {$grants_table} WHERE email_hash = %s AND folder_id = %d LIMIT 1",
+			$email_hash,
+			absint( $folder->term_id )
+		)
+	);
+
+	if ( $existing_id ) {
+		$wpdb->update(
+			$grants_table,
+			array(
+				'request_id'  => $request_id,
+				'user_id'     => $user_id,
+				'status'      => 'active',
+				'updated_at'  => $now,
+			),
+			array( 'id' => absint( $existing_id ) ),
+			array( '%d', '%d', '%s', '%s' ),
+			array( '%d' )
+		);
+
+		return absint( $existing_id );
+	}
+
+	$inserted = $wpdb->insert(
+		$grants_table,
+		array(
+			'request_id' => $request_id,
+			'user_id'    => $user_id,
+			'email_hash' => $email_hash,
+			'folder_id'  => absint( $folder->term_id ),
+			'status'     => 'active',
+			'created_by' => get_current_user_id(),
+			'created_at' => $now,
+			'updated_at' => $now,
+		),
+		array( '%d', '%d', '%s', '%d', '%s', '%d', '%s', '%s' )
+	);
+
+	if ( false === $inserted ) {
+		return new WP_Error( 'grant_failed', __( 'Acces approuve mais grant non cree.', 'photovault' ) );
+	}
+
+	return absint( $wpdb->insert_id );
+}
+
+function photovault_user_can_access_media( $media_id, $user_id = 0 ) {
+	global $wpdb;
+
+	$media_id = absint( $media_id );
+	$user_id  = $user_id ? absint( $user_id ) : get_current_user_id();
+	$post     = get_post( $media_id );
+
+	if ( ! $post || 'media_item' !== $post->post_type ) {
+		return false;
+	}
+
+	if ( photovault_user_can( $user_id, 'photovault_manage_media' ) ) {
+		return true;
+	}
+
+	if ( $user_id && (int) $post->post_author === $user_id ) {
+		return true;
+	}
+
+	if ( 'private' !== $post->post_status ) {
+		return true;
+	}
+
+	if ( ! $user_id || ! photovault_user_has_verified_identity( $user_id ) ) {
+		return false;
+	}
+
+	$user = get_userdata( $user_id );
+	if ( ! $user || ! is_email( $user->user_email ) ) {
+		return false;
+	}
+
+	$folders = wp_get_object_terms( $media_id, 'media_folder', array( 'fields' => 'ids' ) );
+	$folders = is_wp_error( $folders ) ? array() : array_map( 'absint', $folders );
+	if ( empty( $folders ) ) {
+		return false;
+	}
+
+	$placeholders = implode( ',', array_fill( 0, count( $folders ), '%d' ) );
+	$params       = array_merge(
+		array( photovault_hash_access_email( $user->user_email ), $user_id, 'active' ),
+		$folders
+	);
+	$sql          = "SELECT id FROM " . photovault_get_access_grants_table() . " WHERE email_hash = %s AND (user_id = 0 OR user_id = %d) AND status = %s AND folder_id IN ({$placeholders}) LIMIT 1";
+
+	return (bool) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 }
 
 function photovault_get_access_request_counts() {
@@ -167,12 +333,16 @@ function photovault_render_access_requests_page() {
 		$status = 'pending';
 	}
 
+	$updated = isset( $_GET['updated'] ) ? sanitize_key( wp_unslash( $_GET['updated'] ) ) : '';
 	$counts   = photovault_get_access_request_counts();
 	$requests = photovault_get_access_requests( $status, 50 );
 	?>
 	<div class="wrap photovault-access-admin">
 		<h1><?php esc_html_e( 'Demandes d acces protege', 'photovault' ); ?></h1>
 		<p><?php esc_html_e( 'Suivi manuel des visiteurs qui demandent a consulter une collection, une serie privee ou une archive confidentielle.', 'photovault' ); ?></p>
+		<?php if ( $updated ) : ?>
+			<div class="notice notice-info is-dismissible"><p><?php echo 'grant_missing_folder' === $updated ? esc_html__( 'Statut mis a jour, mais aucun dossier media_folder correspondant n a ete trouve pour creer le grant.', 'photovault' ) : esc_html__( 'Demande mise a jour.', 'photovault' ); ?></p></div>
+		<?php endif; ?>
 
 		<div class="pv-access-grid pv-access-grid-compact">
 			<?php photovault_render_access_count_card( __( 'En attente', 'photovault' ), $counts['pending'], __( 'A traiter', 'photovault' ) ); ?>
@@ -194,20 +364,23 @@ function photovault_render_access_requests_page() {
 					<th><?php esc_html_e( 'Collection / sujet', 'photovault' ); ?></th>
 					<th><?php esc_html_e( 'Message', 'photovault' ); ?></th>
 					<th><?php esc_html_e( 'Statut', 'photovault' ); ?></th>
+					<th><?php esc_html_e( 'Grant', 'photovault' ); ?></th>
 					<th><?php esc_html_e( 'Date', 'photovault' ); ?></th>
 					<th><?php esc_html_e( 'Action', 'photovault' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
 				<?php if ( empty( $requests ) ) : ?>
-					<tr><td colspan="6"><?php esc_html_e( 'Aucune demande dans ce filtre.', 'photovault' ); ?></td></tr>
+					<tr><td colspan="7"><?php esc_html_e( 'Aucune demande dans ce filtre.', 'photovault' ); ?></td></tr>
 				<?php else : ?>
 					<?php foreach ( $requests as $request ) : ?>
+						<?php $folder = photovault_find_access_folder_from_request( $request ); ?>
 						<tr>
 							<td><strong><?php echo esc_html( $request['name'] ); ?></strong><br><a href="mailto:<?php echo esc_attr( $request['email'] ); ?>"><?php echo esc_html( $request['email'] ); ?></a></td>
 							<td><strong><?php echo esc_html( $request['collection'] ? $request['collection'] : $request['subject'] ); ?></strong><br><small><?php echo esc_html( $request['subject'] ); ?></small></td>
 							<td><?php echo esc_html( wp_trim_words( $request['message'], 28 ) ); ?></td>
 							<td><code><?php echo esc_html( $request['status'] ); ?></code></td>
+							<td><?php echo $folder ? esc_html( $folder->name ) : esc_html__( 'Dossier introuvable', 'photovault' ); ?></td>
 							<td><?php echo esc_html( get_date_from_gmt( $request['created_at'], 'Y-m-d H:i' ) ); ?></td>
 							<td>
 								<form method="POST" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:6px;flex-wrap:wrap">
@@ -244,6 +417,14 @@ function photovault_handle_access_request_status_update() {
 
 	check_admin_referer( 'photovault_update_access_request_status_' . $request_id );
 
+	$updated = 'true';
+	if ( 'approved' === $new_status ) {
+		$grant = photovault_create_access_grant_from_request( $request_id );
+		if ( is_wp_error( $grant ) ) {
+			$updated = 'folder_not_found' === $grant->get_error_code() ? 'grant_missing_folder' : 'grant_failed';
+		}
+	}
+
 	$wpdb->update(
 		photovault_get_access_requests_table(),
 		array(
@@ -255,7 +436,7 @@ function photovault_handle_access_request_status_update() {
 		array( '%d' )
 	);
 
-	wp_safe_redirect( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending&updated=true' ) );
+	wp_safe_redirect( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending&updated=' . $updated ) );
 	exit;
 }
 add_action( 'admin_post_photovault_update_access_request_status', 'photovault_handle_access_request_status_update' );
