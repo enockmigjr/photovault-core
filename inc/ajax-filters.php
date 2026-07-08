@@ -248,6 +248,10 @@ function photovault_serve_secure_image( $request ) {
 		return new WP_Error( 'forbidden', 'Acces interdit.', array( 'status' => 403 ) );
 	}
 
+	if ( $is_private && ! $is_admin && ! photovault_user_has_verified_identity( get_current_user_id() ) ) {
+		return new WP_Error( 'email_unverified', 'Adresse e-mail non verifiee.', array( 'status' => 403 ) );
+	}
+
 	$thumb_id = get_post_thumbnail_id( $media_id );
 	if ( ! $thumb_id ) {
 		return new WP_Error( 'not_found', 'Fichier introuvable.', array( 'status' => 404 ) );
@@ -268,6 +272,10 @@ function photovault_serve_secure_image( $request ) {
 
 		if ( ! is_user_logged_in() ) {
 			return new WP_Error( 'unauthorized', 'Vous devez etre connecte pour telecharger des medias.', array( 'status' => 401 ) );
+		}
+
+		if ( ! $is_admin && ! photovault_user_has_verified_identity( get_current_user_id() ) ) {
+			return new WP_Error( 'email_unverified', 'Verifiez votre adresse e-mail avant de telecharger un original.', array( 'status' => 403 ) );
 		}
 
 		if ( $is_protected && ! $is_admin && ! $is_owner ) {

@@ -34,6 +34,26 @@ if ( ! function_exists( 'photovault_user_can' ) ) {
 }
 
 
+
+if ( ! function_exists( 'photovault_user_has_verified_identity' ) ) {
+	function photovault_user_has_verified_identity( $user_id = 0 ) {
+		$user_id = $user_id ? absint( $user_id ) : get_current_user_id();
+
+		if ( ! $user_id ) {
+			return false;
+		}
+
+		if ( photovault_user_can( $user_id, 'photovault_manage_media' ) ) {
+			return true;
+		}
+
+		if ( ! function_exists( 'identity_security_kit_is_email_verified' ) ) {
+			return true;
+		}
+
+		return (bool) identity_security_kit_is_email_verified( $user_id );
+	}
+}
 if ( ! function_exists( 'photovault_rate_limit' ) ) {
 	function photovault_rate_limit( $bucket, $limit = 120, $window = 60 ) {
 		$bucket = sanitize_key( $bucket );
