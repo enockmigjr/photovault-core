@@ -253,6 +253,15 @@ function photovault_create_media_post( $file_key, $title, $description, $folder,
 
 	update_post_meta( $media_post_id, 'is_protected', $is_protected );
 
+	if ( function_exists( 'photovault_maybe_secure_media_original' ) ) {
+		$secured = photovault_maybe_secure_media_original( $media_post_id );
+		if ( is_wp_error( $secured ) ) {
+			wp_delete_post( $media_post_id, true );
+			wp_delete_attachment( $attachment_id, true );
+			return $secured;
+		}
+	}
+
 	return $media_post_id;
 }
 

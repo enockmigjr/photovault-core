@@ -178,6 +178,10 @@ function photovault_save_protection_metabox( $post_id ) {
 			}
 		}
 	}
+
+	if ( function_exists( 'photovault_maybe_secure_media_original' ) ) {
+		photovault_maybe_secure_media_original( $post_id );
+	}
 }
 add_action( 'save_post', 'photovault_save_protection_metabox' );
 

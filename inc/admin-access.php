@@ -100,6 +100,9 @@ function photovault_render_access_downloads_page() {
 	}
 
 	$counts = photovault_get_access_report_counts();
+	$unsecured_sensitive_ids = function_exists( 'photovault_get_unsecured_sensitive_media_ids' ) ? photovault_get_unsecured_sensitive_media_ids( 25 ) : array();
+	$secured_count = isset( $_GET['secured'] ) ? absint( $_GET['secured'] ) : null;
+	$failed_count = isset( $_GET['failed'] ) ? absint( $_GET['failed'] ) : null;
 	$recent_sensitive_ids = photovault_get_admin_media_ids(
 		array(
 			'posts_per_page' => 25,
@@ -122,6 +125,9 @@ function photovault_render_access_downloads_page() {
 	<div class="wrap photovault-access-admin">
 		<h1><?php esc_html_e( 'Acces et telechargements', 'photovault' ); ?></h1>
 		<p><?php esc_html_e( 'Vue operationnelle des medias publics, proteges, prives et des telechargements servis par PhotoVault Core.', 'photovault' ); ?></p>
+		<?php if ( null !== $secured_count || null !== $failed_count ) : ?>
+			<div class="notice notice-info is-dismissible"><p><?php echo esc_html( sprintf( __( '%1$d originaux securises, %2$d echecs.', 'photovault' ), $secured_count, $failed_count ) ); ?></p></div>
+		<?php endif; ?>
 
 		<div class="pv-access-grid">
 			<?php photovault_render_access_count_card( __( 'Total medias', 'photovault' ), $counts['total'], __( 'Publics + prives', 'photovault' ) ); ?>
@@ -138,7 +144,20 @@ function photovault_render_access_downloads_page() {
 				<li><?php esc_html_e( 'Les apercus utilisent des variantes thumbnail/preview et non les originaux HD.', 'photovault' ); ?></li>
 				<li><?php esc_html_e( 'Les telechargements exigent un nonce REST, une session connectee et la permission adequate.', 'photovault' ); ?></li>
 				<li><?php esc_html_e( 'Les medias proteges non autorises sont servis avec filigrane et sans telechargement original.', 'photovault' ); ?></li>
+				<li><?php esc_html_e( 'Les originaux des medias proteges ou prives sont deplaces vers un stockage prive durci lorsque PhotoVault les controle.', 'photovault' ); ?></li>
 			</ul>
+		</section>
+
+		<section class="pv-access-panel">
+			<h2><?php esc_html_e( 'Originaux sensibles', 'photovault' ); ?></h2>
+			<p><?php echo esc_html( sprintf( __( '%d medias proteges ou prives ont encore un original a securiser.', 'photovault' ), count( $unsecured_sensitive_ids ) ) ); ?></p>
+			<?php if ( ! empty( $unsecured_sensitive_ids ) ) : ?>
+				<form method="POST" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<input type="hidden" name="action" value="photovault_secure_existing_originals">
+					<?php wp_nonce_field( 'photovault_secure_existing_originals' ); ?>
+					<?php submit_button( __( 'Securiser les 25 prochains originaux', 'photovault' ), 'secondary', 'submit', false ); ?>
+				</form>
+			<?php endif; ?>
 		</section>
 
 		<section class="pv-access-panel">
