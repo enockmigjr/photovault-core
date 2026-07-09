@@ -11,7 +11,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Bloquer les medias prives si l'utilisateur n'est pas owner, admin/media manager ou beneficiaire d'un grant.
 - Filigraner les previews protegees pour les visiteurs non privilegies.
 - Mettre en cache les previews filigranees pour limiter le cout GD.
-- Exposer des options admin bornees pour texte, opacite, densite et qualite JPEG du filigrane.
+- Exposer des options admin bornees pour texte, image, opacite, densite et qualite JPEG du filigrane.
 - Deplacer les originaux proteges/prives vers un stockage prive quand le traitement est applique.
 - Journaliser previews, downloads, refus, demandes et grants.
 
@@ -37,6 +37,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - `photovault_watermark_opacity`
 - `photovault_watermark_spacing`
 - `photovault_watermark_quality`
+- `photovault_watermark_image_id`
 - `is_protected`
 - `_photovault_original_url`
 - `_photovault_private_original_path`

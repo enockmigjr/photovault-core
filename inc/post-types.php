@@ -192,6 +192,11 @@ function photovault_enqueue_admin_media_scripts( $hook ) {
 	global $post_type;
 	if ( ( 'post.php' === $hook || 'post-new.php' === $hook ) && 'media_item' === $post_type ) {
 		wp_enqueue_media();
+		return;
+	}
+
+	if ( 'media_item_page_photovault-settings' === $hook ) {
+		wp_enqueue_media();
 	}
 }
 add_action( 'admin_enqueue_scripts', 'photovault_enqueue_admin_media_scripts' );
@@ -240,6 +245,19 @@ function photovault_sanitize_watermark_spacing( $value ) {
 function photovault_sanitize_watermark_quality( $value ) {
 	return max( 60, min( 95, absint( $value ) ) );
 }
+function photovault_sanitize_watermark_image_id( $value ) {
+	$attachment_id = absint( $value );
+	if ( ! $attachment_id ) {
+		return 0;
+	}
+
+	$mime = get_post_mime_type( $attachment_id );
+	if ( in_array( $mime, array( 'image/jpeg', 'image/png', 'image/webp' ), true ) ) {
+		return $attachment_id;
+	}
+
+	return 0;
+}
 /**
  * Enregistrer l'option de filigrane.
  */
@@ -248,6 +266,7 @@ function photovault_register_settings_fields() {
 	register_setting( 'photovault-settings-group', 'photovault_watermark_opacity', array( 'sanitize_callback' => 'photovault_sanitize_watermark_opacity', 'default' => 60 ) );
 	register_setting( 'photovault-settings-group', 'photovault_watermark_spacing', array( 'sanitize_callback' => 'photovault_sanitize_watermark_spacing', 'default' => 58 ) );
 	register_setting( 'photovault-settings-group', 'photovault_watermark_quality', array( 'sanitize_callback' => 'photovault_sanitize_watermark_quality', 'default' => 90 ) );
+	register_setting( 'photovault-settings-group', 'photovault_watermark_image_id', array( 'sanitize_callback' => 'photovault_sanitize_watermark_image_id', 'default' => 0 ) );
 }
 add_action( 'admin_init', 'photovault_register_settings_fields' );
 
@@ -276,6 +295,22 @@ function photovault_render_settings_page() {
 					</td>
 				</tr>
 				<tr>
+					<th scope="row">
+						<label for="photovault_watermark_image_id"><?php esc_html_e( 'Image de filigrane', 'photovault' ); ?></label>
+					</th>
+					<td>
+						<?php $watermark_image_id = absint( get_option( 'photovault_watermark_image_id', 0 ) ); ?>
+						<input type="hidden" id="photovault_watermark_image_id" name="photovault_watermark_image_id" value="<?php echo esc_attr( $watermark_image_id ); ?>">
+						<div id="photovault-watermark-image-preview" style="margin-bottom: 8px;">
+							<?php if ( $watermark_image_id ) : ?>
+								<?php echo wp_get_attachment_image( $watermark_image_id, 'thumbnail', false, array( 'style' => 'max-width: 120px; height: auto; border: 1px solid #ccd0d4; background: #fff;' ) ); ?>
+							<?php endif; ?>
+						</div>
+						<button type="button" class="button" id="photovault-watermark-image-select"><?php esc_html_e( 'Choisir une image', 'photovault' ); ?></button>
+						<button type="button" class="button" id="photovault-watermark-image-clear" <?php echo $watermark_image_id ? '' : 'style="display:none;"'; ?>><?php esc_html_e( 'Retirer', 'photovault' ); ?></button>
+						<p class="description"><?php esc_html_e( 'PNG, WebP ou JPEG. Si aucune image valide n est choisie, le filigrane texte reste utilise.', 'photovault' ); ?></p>
+					</td>
+				</tr>				<tr>
 					<th scope="row">
 						<label for="photovault_watermark_opacity"><?php esc_html_e( 'Opacite du filigrane', 'photovault' ); ?></label>
 					</th>
@@ -307,5 +342,37 @@ function photovault_render_settings_page() {
 			<?php submit_button(); ?>
 		</form>
 	</div>
+	<script>
+	jQuery(function($) {
+		var photovaultWatermarkFrame;
+		$('#photovault-watermark-image-select').on('click', function(e) {
+			e.preventDefault();
+			if (photovaultWatermarkFrame) {
+				photovaultWatermarkFrame.open();
+				return;
+			}
+			photovaultWatermarkFrame = wp.media({
+				title: '<?php echo esc_js( __( 'Choisir une image de filigrane', 'photovault' ) ); ?>',
+				button: { text: '<?php echo esc_js( __( 'Utiliser cette image', 'photovault' ) ); ?>' },
+				library: { type: 'image' },
+				multiple: false
+			});
+			photovaultWatermarkFrame.on('select', function() {
+				var attachment = photovaultWatermarkFrame.state().get('selection').first().toJSON();
+				var previewUrl = attachment.sizes && attachment.sizes.thumbnail ? attachment.sizes.thumbnail.url : attachment.url;
+				$('#photovault_watermark_image_id').val(attachment.id);
+				$('#photovault-watermark-image-preview').html('<img src="' + previewUrl + '" style="max-width:120px;height:auto;border:1px solid #ccd0d4;background:#fff;" alt="">');
+				$('#photovault-watermark-image-clear').show();
+			});
+			photovaultWatermarkFrame.open();
+		});
+		$('#photovault-watermark-image-clear').on('click', function(e) {
+			e.preventDefault();
+			$('#photovault_watermark_image_id').val('0');
+			$('#photovault-watermark-image-preview').empty();
+			$(this).hide();
+		});
+	});
+	</script>
 	<?php
 }

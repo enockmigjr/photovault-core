@@ -117,12 +117,42 @@ function photovault_prepare_protected_preview_cache_dir() {
 	return $cache_dir;
 }
 
+
+function photovault_get_watermark_image_resource( $attachment_id ) {
+	$attachment_id = absint( $attachment_id );
+	if ( ! $attachment_id ) {
+		return null;
+	}
+
+	$path = get_attached_file( $attachment_id );
+	if ( ! $path || ! file_exists( $path ) ) {
+		return null;
+	}
+
+	$mime = photovault_get_file_mime_type( $path, $attachment_id );
+	if ( 'image/jpeg' === $mime || 'image/jpg' === $mime ) {
+		return function_exists( 'imagecreatefromjpeg' ) ? @imagecreatefromjpeg( $path ) : null;
+	}
+	if ( 'image/png' === $mime ) {
+		return function_exists( 'imagecreatefrompng' ) ? @imagecreatefrompng( $path ) : null;
+	}
+	if ( 'image/webp' === $mime ) {
+		return function_exists( 'imagecreatefromwebp' ) ? @imagecreatefromwebp( $path ) : null;
+	}
+
+	return null;
+}
 function photovault_get_watermark_settings() {
+	$image_id   = photovault_sanitize_watermark_image_id( get_option( 'photovault_watermark_image_id', 0 ) );
+	$image_path = $image_id ? get_attached_file( $image_id ) : '';
+
 	return array(
-		'text'    => photovault_sanitize_watermark_text( get_option( 'photovault_watermark_text', 'PHOTOVAULT' ) ),
-		'opacity' => photovault_sanitize_watermark_opacity( get_option( 'photovault_watermark_opacity', 60 ) ),
-		'spacing' => photovault_sanitize_watermark_spacing( get_option( 'photovault_watermark_spacing', 58 ) ),
-		'quality' => photovault_sanitize_watermark_quality( get_option( 'photovault_watermark_quality', 90 ) ),
+		'text'        => photovault_sanitize_watermark_text( get_option( 'photovault_watermark_text', 'PHOTOVAULT' ) ),
+		'opacity'     => photovault_sanitize_watermark_opacity( get_option( 'photovault_watermark_opacity', 60 ) ),
+		'spacing'     => photovault_sanitize_watermark_spacing( get_option( 'photovault_watermark_spacing', 58 ) ),
+		'quality'     => photovault_sanitize_watermark_quality( get_option( 'photovault_watermark_quality', 90 ) ),
+		'image_id'    => $image_id,
+		'image_mtime' => $image_path && file_exists( $image_path ) ? (int) filemtime( $image_path ) : 0,
 	);
 }
 function photovault_get_protected_preview_cache_path( $media_id, $attachment_id, $display, $source_path, $mime, $watermark_settings ) {
@@ -185,10 +215,31 @@ function photovault_render_protected_preview_to_cache( $source_path, $cache_path
 	$spacing = max( 35, min( 180, absint( $watermark_settings['spacing'] ) ) );
 	$x_step  = max( 90, (int) round( $spacing * 2.5 ) );
 
-	for ( $y = -30, $row = 0; $y < $h + 60; $y += $spacing, $row++ ) {
-		$offset = ( $row % 4 ) * (int) round( $spacing * 0.72 );
-		for ( $x = -1 * $x_step + $offset; $x < $w + $x_step; $x += $x_step ) {
-			imagestring( $img, 5, $x, $y, $watermark_settings['text'], $col );
+	$watermark_img = photovault_get_watermark_image_resource( $watermark_settings['image_id'] );
+	if ( $watermark_img ) {
+		$wm_w = imagesx( $watermark_img );
+		$wm_h = imagesy( $watermark_img );
+		$target_w = max( 64, min( 220, (int) round( $w * 0.22 ) ) );
+		$target_h = max( 24, (int) round( $wm_h * ( $target_w / max( 1, $wm_w ) ) ) );
+		$scaled = function_exists( 'imagescale' ) ? imagescale( $watermark_img, $target_w, $target_h ) : $watermark_img;
+		if ( $scaled ) {
+			for ( $y = -1 * $target_h, $row = 0; $y < $h + $target_h; $y += $spacing + $target_h, $row++ ) {
+				$offset = ( $row % 4 ) * (int) round( $spacing * 0.72 );
+				for ( $x = -1 * $x_step + $offset; $x < $w + $x_step; $x += $x_step ) {
+					imagecopymerge( $img, $scaled, $x, $y, 0, 0, imagesx( $scaled ), imagesy( $scaled ), $opacity );
+				}
+			}
+			if ( $scaled !== $watermark_img ) {
+				imagedestroy( $scaled );
+			}
+		}
+		imagedestroy( $watermark_img );
+	} else {
+		for ( $y = -30, $row = 0; $y < $h + 60; $y += $spacing, $row++ ) {
+			$offset = ( $row % 4 ) * (int) round( $spacing * 0.72 );
+			for ( $x = -1 * $x_step + $offset; $x < $w + $x_step; $x += $x_step ) {
+				imagestring( $img, 5, $x, $y, $watermark_settings['text'], $col );
+			}
 		}
 	}
 
@@ -247,6 +298,7 @@ add_action( 'update_option_photovault_watermark_text', 'photovault_clear_protect
 add_action( 'update_option_photovault_watermark_opacity', 'photovault_clear_protected_preview_cache' );
 add_action( 'update_option_photovault_watermark_spacing', 'photovault_clear_protected_preview_cache' );
 add_action( 'update_option_photovault_watermark_quality', 'photovault_clear_protected_preview_cache' );
+add_action( 'update_option_photovault_watermark_image_id', 'photovault_clear_protected_preview_cache' );
 
 function photovault_get_secure_image_variant( $attachment_id, $display ) {
 	$display = sanitize_key( $display );
