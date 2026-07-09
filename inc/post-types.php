@@ -222,11 +222,32 @@ function photovault_register_settings_menu() {
 }
 add_action( 'admin_menu', 'photovault_register_settings_menu' );
 
+function photovault_sanitize_watermark_text( $value ) {
+	$value = sanitize_text_field( (string) $value );
+	$value = function_exists( 'mb_substr' ) ? mb_substr( $value, 0, 48 ) : substr( $value, 0, 48 );
+
+	return '' !== $value ? $value : 'PHOTOVAULT';
+}
+
+function photovault_sanitize_watermark_opacity( $value ) {
+	return max( 10, min( 100, absint( $value ) ) );
+}
+
+function photovault_sanitize_watermark_spacing( $value ) {
+	return max( 35, min( 180, absint( $value ) ) );
+}
+
+function photovault_sanitize_watermark_quality( $value ) {
+	return max( 60, min( 95, absint( $value ) ) );
+}
 /**
  * Enregistrer l'option de filigrane.
  */
 function photovault_register_settings_fields() {
-	register_setting( 'photovault-settings-group', 'photovault_watermark_text' );
+	register_setting( 'photovault-settings-group', 'photovault_watermark_text', array( 'sanitize_callback' => 'photovault_sanitize_watermark_text', 'default' => 'PHOTOVAULT' ) );
+	register_setting( 'photovault-settings-group', 'photovault_watermark_opacity', array( 'sanitize_callback' => 'photovault_sanitize_watermark_opacity', 'default' => 60 ) );
+	register_setting( 'photovault-settings-group', 'photovault_watermark_spacing', array( 'sanitize_callback' => 'photovault_sanitize_watermark_spacing', 'default' => 58 ) );
+	register_setting( 'photovault-settings-group', 'photovault_watermark_quality', array( 'sanitize_callback' => 'photovault_sanitize_watermark_quality', 'default' => 90 ) );
 }
 add_action( 'admin_init', 'photovault_register_settings_fields' );
 
@@ -250,8 +271,35 @@ function photovault_render_settings_page() {
 						<label for="photovault_watermark_text"><?php _e( 'Texte du filigrane', 'photovault' ); ?></label>
 					</th>
 					<td>
-						<input type="text" id="photovault_watermark_text" name="photovault_watermark_text" value="<?php echo esc_attr( get_option( 'photovault_watermark_text', 'PHOTOVAULT' ) ); ?>" class="regular-text">
+						<input type="text" id="photovault_watermark_text" name="photovault_watermark_text" value="<?php echo esc_attr( get_option( 'photovault_watermark_text', 'PHOTOVAULT' ) ); ?>" class="regular-text" maxlength="48">
 						<p class="description"><?php _e( 'Ce texte s\'affichera de manière répétée en diagonale sur les aperçus d\'images protégées.', 'photovault' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="photovault_watermark_opacity"><?php esc_html_e( 'Opacite du filigrane', 'photovault' ); ?></label>
+					</th>
+					<td>
+						<input type="number" id="photovault_watermark_opacity" name="photovault_watermark_opacity" value="<?php echo esc_attr( get_option( 'photovault_watermark_opacity', 60 ) ); ?>" min="10" max="100" step="1" class="small-text"> %
+						<p class="description"><?php esc_html_e( 'Valeur bornee entre 10 et 100. Plus la valeur est haute, plus le filigrane est visible.', 'photovault' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="photovault_watermark_spacing"><?php esc_html_e( 'Densite du filigrane', 'photovault' ); ?></label>
+					</th>
+					<td>
+						<input type="number" id="photovault_watermark_spacing" name="photovault_watermark_spacing" value="<?php echo esc_attr( get_option( 'photovault_watermark_spacing', 58 ) ); ?>" min="35" max="180" step="1" class="small-text"> px
+						<p class="description"><?php esc_html_e( 'Espacement vertical entre les lignes. Une valeur basse rend le filigrane plus dense.', 'photovault' ); ?></p>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row">
+						<label for="photovault_watermark_quality"><?php esc_html_e( 'Qualite JPEG du cache', 'photovault' ); ?></label>
+					</th>
+					<td>
+						<input type="number" id="photovault_watermark_quality" name="photovault_watermark_quality" value="<?php echo esc_attr( get_option( 'photovault_watermark_quality', 90 ) ); ?>" min="60" max="95" step="1" class="small-text"> %
+						<p class="description"><?php esc_html_e( 'Valeur bornee entre 60 et 95 pour les previews filigranees en JPEG.', 'photovault' ); ?></p>
 					</td>
 				</tr>
 			</table>
