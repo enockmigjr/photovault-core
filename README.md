@@ -10,6 +10,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Servir les previews et downloads via `/wp-json/photovault/v1/secure-image`.
 - Bloquer les medias prives si l'utilisateur n'est pas owner, admin/media manager ou beneficiaire d'un grant.
 - Filigraner les previews protegees pour les visiteurs non privilegies.
+- Mettre en cache les previews filigranees pour limiter le cout GD.
 - Deplacer les originaux proteges/prives vers un stockage prive quand le traitement est applique.
 - Journaliser previews, downloads, refus, demandes et grants.
 
@@ -58,6 +59,7 @@ La commande traite les originaux proteges/prives existants par lots.
 - `photovault_max_upload_dimension`
 - `photovault_max_upload_files`
 - `photovault_private_originals_dir`
+- `photovault_protected_preview_cache_dir`
 
 ## Verification minimale
 

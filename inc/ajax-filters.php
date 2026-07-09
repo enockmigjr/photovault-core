@@ -89,6 +89,151 @@ function photovault_get_secure_image_url( $media_id, $display = 'card', $downloa
 	return add_query_arg( $args, rest_url( 'photovault/v1/secure-image' ) );
 }
 
+function photovault_get_protected_preview_cache_dir() {
+	$upload_dir = wp_get_upload_dir();
+	$base_dir   = ! empty( $upload_dir['basedir'] ) ? $upload_dir['basedir'] : WP_CONTENT_DIR . '/uploads';
+	$cache_dir  = trailingslashit( $base_dir ) . 'photovault-cache/protected-previews';
+
+	return untrailingslashit( wp_normalize_path( apply_filters( 'photovault_protected_preview_cache_dir', $cache_dir ) ) );
+}
+
+function photovault_prepare_protected_preview_cache_dir() {
+	$cache_dir = photovault_get_protected_preview_cache_dir();
+	if ( empty( $cache_dir ) || ! wp_mkdir_p( $cache_dir ) ) {
+		return false;
+	}
+
+	$index_file = trailingslashit( $cache_dir ) . 'index.php';
+	if ( ! file_exists( $index_file ) ) {
+		file_put_contents( $index_file, "<?php\n// Silence is golden.\n" );
+	}
+
+	$htaccess_file = trailingslashit( $cache_dir ) . '.htaccess';
+	if ( ! file_exists( $htaccess_file ) ) {
+		$rules = "Options -Indexes\n<FilesMatch \"\\.(php|phtml|phar)$\">\n\tRequire all denied\n</FilesMatch>\n";
+		file_put_contents( $htaccess_file, $rules );
+	}
+
+	return $cache_dir;
+}
+
+function photovault_get_protected_preview_cache_path( $media_id, $attachment_id, $display, $source_path, $mime, $watermark_text ) {
+	$cache_dir = photovault_prepare_protected_preview_cache_dir();
+	if ( ! $cache_dir || ! $source_path || ! file_exists( $source_path ) ) {
+		return '';
+	}
+
+	$extension = 'jpg';
+	if ( 'image/png' === $mime ) {
+		$extension = 'png';
+	} elseif ( 'image/webp' === $mime ) {
+		$extension = 'webp';
+	}
+
+	$key = implode(
+		'|',
+		array(
+			absint( $media_id ),
+			absint( $attachment_id ),
+			sanitize_key( $display ),
+			(string) filemtime( $source_path ),
+			(string) filesize( $source_path ),
+			wp_hash( $watermark_text ),
+			PHOTOVAULT_CORE_VERSION,
+		)
+	);
+
+	return trailingslashit( $cache_dir ) . sha1( $key ) . '.' . $extension;
+}
+
+function photovault_render_protected_preview_to_cache( $source_path, $cache_path, $mime, $watermark_text ) {
+	if ( ! $source_path || ! $cache_path || ! file_exists( $source_path ) || ! function_exists( 'imagecreatefromstring' ) ) {
+		return false;
+	}
+
+	$filesize = filesize( $source_path );
+	if ( false === $filesize || $filesize > 20 * 1024 * 1024 ) {
+		return false;
+	}
+
+	$img = null;
+	if ( 'image/jpeg' === $mime || 'image/jpg' === $mime ) {
+		$img = function_exists( 'imagecreatefromjpeg' ) ? @imagecreatefromjpeg( $source_path ) : null;
+	} elseif ( 'image/png' === $mime ) {
+		$img = function_exists( 'imagecreatefrompng' ) ? @imagecreatefrompng( $source_path ) : null;
+	} elseif ( 'image/webp' === $mime ) {
+		$img = function_exists( 'imagecreatefromwebp' ) ? @imagecreatefromwebp( $source_path ) : null;
+	}
+
+	if ( ! $img ) {
+		return false;
+	}
+
+	$col = imagecolorallocatealpha( $img, 255, 255, 255, 52 );
+	$w   = imagesx( $img );
+	$h   = imagesy( $img );
+
+	for ( $y = -30, $row = 0; $y < $h + 60; $y += 58, $row++ ) {
+		$offset = ( $row % 4 ) * 42;
+		for ( $x = -160 + $offset; $x < $w + 120; $x += 145 ) {
+			imagestring( $img, 5, $x, $y, $watermark_text, $col );
+		}
+	}
+
+	$tmp_path = $cache_path . '.' . wp_generate_password( 8, false, false ) . '.tmp';
+	$written  = false;
+	if ( 'image/png' === $mime ) {
+		$written = imagepng( $img, $tmp_path );
+	} elseif ( 'image/webp' === $mime ) {
+		$written = function_exists( 'imagewebp' ) ? imagewebp( $img, $tmp_path ) : false;
+	} else {
+		$written = imagejpeg( $img, $tmp_path, 90 );
+	}
+
+	imagedestroy( $img );
+
+	if ( ! $written || ! file_exists( $tmp_path ) ) {
+		@unlink( $tmp_path );
+		return false;
+	}
+
+	if ( ! @rename( $tmp_path, $cache_path ) ) {
+		@unlink( $tmp_path );
+		return false;
+	}
+
+	return file_exists( $cache_path );
+}
+
+function photovault_serve_file_response( $filepath, $mime, $cache_control = 'private, max-age=3600' ) {
+	header( 'Content-Type: ' . $mime );
+	header( 'Cache-Control: ' . $cache_control );
+	header( 'Content-Length: ' . filesize( $filepath ) );
+	readfile( $filepath );
+	exit;
+}
+
+function photovault_clear_protected_preview_cache( ...$args ) {
+	$cache_dir = photovault_get_protected_preview_cache_dir();
+	if ( empty( $cache_dir ) || ! is_dir( $cache_dir ) ) {
+		return;
+	}
+
+	$files = glob( trailingslashit( $cache_dir ) . '*.{jpg,jpeg,png,webp,tmp}', GLOB_BRACE );
+	if ( ! is_array( $files ) ) {
+		return;
+	}
+
+	foreach ( $files as $file ) {
+		if ( is_file( $file ) ) {
+			@unlink( $file );
+		}
+	}
+}
+add_action( 'save_post_media_item', 'photovault_clear_protected_preview_cache' );
+add_action( 'deleted_post', 'photovault_clear_protected_preview_cache' );
+add_action( 'update_option_photovault_watermark_text', 'photovault_clear_protected_preview_cache' );
+
 function photovault_get_secure_image_variant( $attachment_id, $display ) {
 	$display = sanitize_key( $display );
 	$sizes = array(
@@ -346,47 +491,18 @@ function photovault_serve_secure_image( $request ) {
 		photovault_log_media_event( $is_protected && ! $is_admin && ! $is_owner ? 'protected_preview_served' : 'media_preview_served', 'info', $media_id, array( 'display' => $display, 'protected' => $is_protected ) );
 	}
 
-	header( 'Content-Type: ' . $mime );
-	header( 'Cache-Control: private, max-age=3600' );
-
 	if ( $is_protected && ! $is_admin && ! $is_owner ) {
-		$filesize = filesize( $filepath );
-		if ( $filesize <= 20 * 1024 * 1024 && function_exists( 'imagecreatefromstring' ) ) {
-			$img = null;
-			if ( 'image/jpeg' === $mime || 'image/jpg' === $mime ) {
-				$img = function_exists( 'imagecreatefromjpeg' ) ? @imagecreatefromjpeg( $filepath ) : null;
-			} elseif ( 'image/png' === $mime ) {
-				$img = function_exists( 'imagecreatefrompng' ) ? @imagecreatefrompng( $filepath ) : null;
-			} elseif ( 'image/webp' === $mime ) {
-				$img = function_exists( 'imagecreatefromwebp' ) ? @imagecreatefromwebp( $filepath ) : null;
-			}
+		$watermark_text = get_option( 'photovault_watermark_text', 'PHOTOVAULT' );
+		$cache_path     = photovault_get_protected_preview_cache_path( $media_id, $thumb_id, $display, $filepath, $mime, $watermark_text );
 
-			if ( $img ) {
-				$watermark_text = get_option( 'photovault_watermark_text', 'PHOTOVAULT' );
-				$col = imagecolorallocatealpha( $img, 255, 255, 255, 52 );
-				$w = imagesx( $img );
-				$h = imagesy( $img );
+		if ( $cache_path && file_exists( $cache_path ) ) {
+			photovault_serve_file_response( $cache_path, $mime );
+		}
 
-				for ( $y = -30, $row = 0; $y < $h + 60; $y += 58, $row++ ) {
-					$offset = ( $row % 4 ) * 42;
-					for ( $x = -160 + $offset; $x < $w + 120; $x += 145 ) {
-						imagestring( $img, 5, $x, $y, $watermark_text, $col );
-					}
-				}
-
-				if ( 'image/png' === $mime ) {
-					imagepng( $img );
-				} elseif ( 'image/webp' === $mime ) {
-					imagewebp( $img );
-				} else {
-					imagejpeg( $img );
-				}
-				imagedestroy( $img );
-				exit;
-			}
+		if ( $cache_path && photovault_render_protected_preview_to_cache( $filepath, $cache_path, $mime, $watermark_text ) ) {
+			photovault_serve_file_response( $cache_path, $mime );
 		}
 	}
 
-	readfile( $filepath );
-	exit;
+	photovault_serve_file_response( $filepath, $mime );
 }
