@@ -1,0 +1,78 @@
+# PhotoVault Core
+
+PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies, thumbnails/previews, endpoint secure-image, downloads controles, collections protegees, demandes d'acces, grants, stockage prive et audit media.
+
+## Responsabilites
+
+- Enregistrer `media_item`, `media_folder` et `media_category`.
+- Ajouter les capabilities PhotoVault aux administrateurs.
+- Servir les listes media via REST sans exposer les originaux HD.
+- Servir les previews et downloads via `/wp-json/photovault/v1/secure-image`.
+- Bloquer les medias prives si l'utilisateur n'est pas owner, admin/media manager ou beneficiaire d'un grant.
+- Filigraner les previews protegees pour les visiteurs non privilegies.
+- Deplacer les originaux proteges/prives vers un stockage prive quand le traitement est applique.
+- Journaliser previews, downloads, refus, demandes et grants.
+
+## Capabilities
+
+- `photovault_manage_platform`
+- `photovault_manage_media`
+- `photovault_view_private_media`
+- `photovault_manage_settings`
+
+`manage_options` reste accepte comme fallback administrateur dans les helpers PhotoVault.
+
+## Tables
+
+- `{$wpdb->prefix}photovault_access_requests`
+- `{$wpdb->prefix}photovault_access_grants`
+- `{$wpdb->prefix}photovault_media_audit`
+
+## Options et metas importantes
+
+- `photovault_core_version`
+- `photovault_watermark_text`
+- `is_protected`
+- `_photovault_original_url`
+- `_photovault_private_original_path`
+- `_photovault_private_original_secured_at`
+
+## Endpoints et actions
+
+- `GET /wp-json/photovault/v1/media`
+- `GET /wp-json/photovault/v1/secure-image`
+- `admin_post_photovault_update_access_request_status`
+- `admin_post_photovault_secure_existing_originals`
+
+## WP-CLI
+
+```bash
+wp photovault secure-originals --limit=25
+```
+
+La commande traite les originaux proteges/prives existants par lots.
+
+## Filtres publics
+
+- `photovault_max_upload_bytes`
+- `photovault_max_upload_dimension`
+- `photovault_max_upload_files`
+- `photovault_private_originals_dir`
+
+## Verification minimale
+
+1. Activer le plugin et verifier les tables DB.
+2. Confirmer que les pages liste utilisent les variantes `card`/`preview`.
+3. Tester `secure-image` avec anonyme, user, owner, media manager et admin.
+4. Tester un media prive sans grant puis avec grant.
+5. Verifier que le serveur web refuse l'acces direct a `wp-content/photovault-private/`.
+6. Lancer `wp photovault secure-originals --limit=25` si WP-CLI est disponible.
+
+## Documentation liee
+
+Voir dans le depot theme principal:
+
+- `doc/rest-ajax-inventory.md`
+- `doc/capabilities-matrix.md`
+- `doc/plugin-surfaces.md`
+- `doc/adr/ADR-002-protected-media-storage.md`
