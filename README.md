@@ -93,6 +93,7 @@ La commande traite les originaux proteges/prives existants par lots.
 7. Executer `wp eval-file tests/runtime-user-library.php` pour verifier favoris, isolation, historique, acces et permissions REST.
 8. Executer `wp eval-file tests/runtime-shootings.php` pour verifier validation, ownership, transitions, administration et e-mails.
 9. Executer `wp eval-file tests/runtime-media-management.php` pour verifier metadonnees, tags, isolation des comptes et acces a l'import.
+10. Executer `wp eval-file tests/runtime-media-authorization.php` pour verifier roles, grants, ID guessing, pagination privee, nonces et refus de telechargement.
 
 ## Documentation liee
 

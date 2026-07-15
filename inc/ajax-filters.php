@@ -348,6 +348,45 @@ function photovault_get_file_mime_type( $path, $attachment_id ) {
 	return get_post_mime_type( $attachment_id );
 }
 
+/**
+ * Restrict private media before pagination is calculated.
+ */
+function photovault_restrict_media_query_where( $where, $user_id ) {
+	global $wpdb;
+
+	$user_id = absint( $user_id );
+	$where  .= $wpdb->prepare(
+		" AND ({$wpdb->posts}.post_status <> %s OR {$wpdb->posts}.post_author = %d",
+		'private',
+		$user_id
+	);
+
+	if ( $user_id && photovault_user_has_verified_identity( $user_id ) ) {
+		$user = get_userdata( $user_id );
+		if ( $user && is_email( $user->user_email ) ) {
+			$grants_table = photovault_get_access_grants_table();
+			$where       .= $wpdb->prepare(
+				" OR EXISTS (
+					SELECT 1 FROM {$wpdb->term_relationships} pv_tr
+					INNER JOIN {$wpdb->term_taxonomy} pv_tt ON pv_tt.term_taxonomy_id = pv_tr.term_taxonomy_id
+					INNER JOIN {$grants_table} pv_grant ON pv_grant.folder_id = pv_tt.term_id
+					WHERE pv_tr.object_id = {$wpdb->posts}.ID
+					AND pv_tt.taxonomy = %s
+					AND pv_grant.email_hash = %s
+					AND (pv_grant.user_id = 0 OR pv_grant.user_id = %d)
+					AND pv_grant.status = %s
+				)",
+				'media_folder',
+				photovault_hash_access_email( $user->user_email ),
+				$user_id,
+				'active'
+			);
+		}
+	}
+
+	return $where . ')';
+}
+
 function photovault_get_filtered_media( $request ) {
 	if ( function_exists( 'photovault_rate_limit' ) && ! photovault_rate_limit( 'media_filter', 90, 60 ) ) {
 		return new WP_Error( 'too_many_requests', 'Trop de requetes. Veuillez patienter.', array( 'status' => 429 ) );
@@ -400,7 +439,26 @@ function photovault_get_filtered_media( $request ) {
 		$args['order']   = ( 'alphabetical' === $orderby || 'date_asc' === $orderby ) ? 'ASC' : 'DESC';
 	}
 
-	$query = new WP_Query( $args );
+	$visibility_filter = null;
+	if ( ! photovault_current_user_can( 'photovault_manage_media' ) ) {
+		$user_id          = get_current_user_id();
+		$visibility_filter = static function ( $where, $query ) use ( $user_id ) {
+			if ( 'media_item' !== $query->get( 'post_type' ) ) {
+				return $where;
+			}
+
+			return photovault_restrict_media_query_where( $where, $user_id );
+		};
+		add_filter( 'posts_where', $visibility_filter, 10, 2 );
+	}
+
+	try {
+		$query = new WP_Query( $args );
+	} finally {
+		if ( $visibility_filter ) {
+			remove_filter( 'posts_where', $visibility_filter, 10 );
+		}
+	}
 	$results = array();
 
 	if ( $query->have_posts() ) {
@@ -469,7 +527,7 @@ function photovault_serve_secure_image( $request ) {
 			photovault_log_media_event( 'access_denied', 'warning', $media_id, array( 'reason' => 'private_media', 'display' => sanitize_key( $request->get_param( 'display' ) ) ) );
 		}
 
-		return new WP_Error( 'forbidden', 'Acces interdit.', array( 'status' => 403 ) );
+		return new WP_Error( 'not_found', 'Media introuvable.', array( 'status' => 404 ) );
 	}
 
 	$thumb_id = get_post_thumbnail_id( $media_id );
