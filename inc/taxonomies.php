@@ -66,5 +66,23 @@ function photovault_register_taxonomies() {
 	);
 
 	register_taxonomy( 'media_category', array( 'media_item' ), $category_args );
+
+	register_taxonomy(
+		'media_tag',
+		array( 'media_item' ),
+		array(
+			'labels'            => array(
+				'name'          => __( 'Tags media', 'photovault' ),
+				'singular_name' => __( 'Tag media', 'photovault' ),
+				'menu_name'     => __( 'Tags', 'photovault' ),
+			),
+			'hierarchical'      => false,
+			'show_ui'           => true,
+			'show_admin_column' => true,
+			'show_in_rest'      => true,
+			'query_var'         => true,
+			'rewrite'           => array( 'slug' => 'media-tag' ),
+		)
+	);
 }
 add_action( 'init', 'photovault_register_taxonomies' );

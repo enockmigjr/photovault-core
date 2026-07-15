@@ -4,7 +4,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 
 ## Responsabilites
 
-- Enregistrer `media_item`, `media_folder` et `media_category`.
+- Enregistrer `media_item`, `media_folder`, `media_category` et `media_tag`.
 - Ajouter les capabilities PhotoVault aux administrateurs.
 - Servir les listes media via REST sans exposer les originaux HD.
 - Servir les previews et downloads via `/wp-json/photovault/v1/secure-image`.
@@ -16,6 +16,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Journaliser previews, downloads, refus, demandes et grants.
 - Fournir une bibliotheque personnelle de favoris, un historique de telechargements et les acces du compte sans fuite entre utilisateurs.
 - Gerer les demandes de shootings privees, leur ownership, leurs transitions serveur et leurs notifications transactionnelles.
+- Fournir un espace d'import administrateur avec progression fichier par fichier et edition immediate des metadonnees.
 
 ## Capabilities
 
@@ -53,6 +54,8 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 ## Endpoints et actions
 
 - `GET /wp-json/photovault/v1/media`
+- `POST /wp-json/photovault/v1/media/upload`
+- `POST/PUT/PATCH /wp-json/photovault/v1/media/{id}`
 - `GET /wp-json/photovault/v1/secure-image`
 - `GET /wp-json/photovault/v1/favorites`
 - `POST /wp-json/photovault/v1/favorites/{id}`
@@ -89,6 +92,7 @@ La commande traite les originaux proteges/prives existants par lots.
 6. Lancer `wp photovault secure-originals --limit=25` si WP-CLI est disponible.
 7. Executer `wp eval-file tests/runtime-user-library.php` pour verifier favoris, isolation, historique, acces et permissions REST.
 8. Executer `wp eval-file tests/runtime-shootings.php` pour verifier validation, ownership, transitions, administration et e-mails.
+9. Executer `wp eval-file tests/runtime-media-management.php` pour verifier metadonnees, tags, isolation des comptes et acces a l'import.
 
 ## Documentation liee
 
