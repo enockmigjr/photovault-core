@@ -57,11 +57,9 @@ add_action( 'admin_init', 'photovault_restrict_admin_access' );
  * Restreindre l'accès aux galeries et médias pour les utilisateurs anonymes.
  */
 function photovault_enforce_login_for_media() {
-	if ( ! is_user_logged_in() ) {
-		if ( is_post_type_archive( 'media_item' ) || is_singular( 'media_item' ) || is_tax( 'media_folder' ) || is_tax( 'media_category' ) ) {
-			wp_safe_redirect( home_url( '/login/' ) );
-			exit;
-		}
+	if ( ! is_user_logged_in() && is_singular( 'media_item' ) && 'private' === get_post_status( get_queried_object_id() ) ) {
+		wp_safe_redirect( add_query_arg( 'redirect_to', rawurlencode( get_permalink( get_queried_object_id() ) ), home_url( '/login/' ) ) );
+		exit;
 	}
 }
 add_action( 'template_redirect', 'photovault_enforce_login_for_media' );
@@ -88,4 +86,3 @@ function photovault_hide_admin_bar() {
 	}
 }
 add_action( 'after_setup_theme', 'photovault_hide_admin_bar' );
-

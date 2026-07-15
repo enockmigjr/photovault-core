@@ -142,7 +142,16 @@ try {
 
 	wp_set_current_user( 0 );
 	$anonymous = rest_do_request( new WP_REST_Request( 'GET', '/photovault/v1/media' ) );
-	photovault_media_authorization_assert( in_array( $anonymous->get_status(), array( 401, 403 ), true ), 'Anonymous media listing was accepted.' );
+	photovault_media_authorization_assert( 200 === $anonymous->get_status(), 'Anonymous public media listing was rejected.' );
+	$anonymous_data = $anonymous->get_data();
+	$anonymous_ids  = array_map( 'intval', wp_list_pluck( $anonymous_data['data'], 'id' ) );
+	photovault_media_authorization_assert( in_array( $media_ids['public'], $anonymous_ids, true ) && in_array( $media_ids['public_protected'], $anonymous_ids, true ), 'Anonymous listing omitted public media.' );
+	photovault_media_authorization_assert( ! in_array( $media_ids['private_a'], $anonymous_ids, true ) && ! in_array( $media_ids['private_b'], $anonymous_ids, true ), 'Anonymous listing disclosed private media.' );
+	$anonymous_folder_request = new WP_REST_Request( 'GET', '/photovault/v1/media' );
+	$anonymous_folder_request->set_param( 'folder', $folder_ids['A'] );
+	$anonymous_folder = rest_do_request( $anonymous_folder_request );
+	$anonymous_folder_data = $anonymous_folder->get_data();
+	photovault_media_authorization_assert( 200 === $anonymous_folder->get_status() && array() === $anonymous_folder_data['data'] && 0 === (int) $anonymous_folder_data['pages'], 'Anonymous filtering leaked private collection volume.' );
 	$private_request = new WP_REST_Request( 'GET', '/photovault/v1/secure-image' );
 	$private_request->set_param( 'id', $media_ids['private_a'] );
 	$private_request->set_param( 'display', 'card' );
@@ -205,7 +214,7 @@ try {
 
 	echo wp_json_encode(
 		array(
-			'anonymous_listing'       => 'denied',
+			'anonymous_listing'       => 'public_only',
 			'private_id_guessing'     => 'not_found',
 			'pagination_leak'         => 'closed',
 			'unverified_download'     => 'denied',

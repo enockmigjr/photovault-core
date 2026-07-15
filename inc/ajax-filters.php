@@ -13,7 +13,7 @@ function photovault_register_rest_routes() {
 	register_rest_route( 'photovault/v1', '/media', array(
 		'methods'             => WP_REST_Server::READABLE,
 		'callback'            => 'photovault_get_filtered_media',
-		'permission_callback' => 'is_user_logged_in',
+		'permission_callback' => '__return_true',
 		'args'                => array(
 			'page'      => array( 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_optional_positive_int' ),
 			'folder'    => array( 'sanitize_callback' => 'absint', 'validate_callback' => 'photovault_validate_optional_positive_int' ),
