@@ -14,6 +14,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Exposer des options admin bornees pour texte, image, opacite, densite et qualite JPEG du filigrane.
 - Deplacer les originaux proteges/prives vers un stockage prive quand le traitement est applique.
 - Journaliser previews, downloads, refus, demandes et grants.
+- Fournir une bibliotheque personnelle de favoris, un historique de telechargements et les acces du compte sans fuite entre utilisateurs.
 
 ## Capabilities
 
@@ -29,6 +30,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - `{$wpdb->prefix}photovault_access_requests`
 - `{$wpdb->prefix}photovault_access_grants`
 - `{$wpdb->prefix}photovault_media_audit`
+- `{$wpdb->prefix}photovault_favorites`
 
 ## Options et metas importantes
 
@@ -47,6 +49,9 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 
 - `GET /wp-json/photovault/v1/media`
 - `GET /wp-json/photovault/v1/secure-image`
+- `GET /wp-json/photovault/v1/favorites`
+- `POST /wp-json/photovault/v1/favorites/{id}`
+- `DELETE /wp-json/photovault/v1/favorites/{id}`
 - `admin_post_photovault_update_access_request_status`
 - `admin_post_photovault_secure_existing_originals`
 
@@ -74,6 +79,7 @@ La commande traite les originaux proteges/prives existants par lots.
 4. Tester un media prive sans grant puis avec grant.
 5. Verifier que le serveur web refuse l'acces direct a `wp-content/photovault-private/`.
 6. Lancer `wp photovault secure-originals --limit=25` si WP-CLI est disponible.
+7. Executer `wp eval-file tests/runtime-user-library.php` pour verifier favoris, isolation, historique, acces et permissions REST.
 
 ## Documentation liee
 
