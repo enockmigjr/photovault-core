@@ -241,12 +241,7 @@ function photovault_transition_shooting( $shooting_id, $new_status, $actor_user_
 }
 
 function photovault_send_shooting_email( $to, $subject, $content ) {
-	if ( function_exists( 'identity_security_kit_send_transactional_email' ) ) {
-		return identity_security_kit_send_transactional_email( $to, $subject, $content );
-	}
-
-	$body = implode( "\n\n", array_filter( array_merge( array( $content['title'] ?? '', $content['greeting'] ?? '', $content['intro'] ?? '' ), $content['details'] ?? array(), array( $content['action_url'] ?? '' ) ) ) );
-	return wp_mail( sanitize_email( $to ), sanitize_text_field( $subject ), $body );
+	return photovault_send_transactional_email( $to, $subject, $content );
 }
 
 function photovault_send_shooting_notifications( $shooting_id, $event, $actor_user_id = 0 ) {

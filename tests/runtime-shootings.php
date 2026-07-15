@@ -63,6 +63,8 @@ try {
 	photovault_shootings_runtime_assert( is_int( $shooting_id ) && $shooting_id > 0, 'Valid shooting creation failed.' );
 	$shooting_ids[] = $shooting_id;
 	photovault_shootings_runtime_assert( 2 === count( $captured_mail ), 'Client and administrator creation emails were not emitted.' );
+	photovault_shootings_runtime_assert( false !== strpos( $captured_mail[0]['message'], '<table role="presentation"' ), 'Shooting notification did not use the professional HTML layout.' );
+	photovault_shootings_runtime_assert( in_array( 'Content-Type: text/html; charset=UTF-8', $captured_mail[0]['headers'], true ), 'Shooting notification is missing its scoped HTML content type.' );
 	photovault_shootings_runtime_assert( 'pending' === photovault_get_shooting_data( $shooting_id )['status'], 'New shooting did not start pending.' );
 	photovault_shootings_runtime_assert( array( $shooting_id ) === wp_list_pluck( photovault_get_user_shootings( $user_ids[0] ), 'id' ), 'Owner shooting list did not resolve the reservation.' );
 

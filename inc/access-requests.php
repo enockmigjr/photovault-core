@@ -81,6 +81,73 @@ function photovault_get_access_request_ip_hash() {
 	return $ip ? hash_hmac( 'sha256', $ip, wp_salt( 'auth' ) ) : null;
 }
 
+/** Send requester and studio notifications for a newly stored access request. */
+function photovault_send_access_request_notifications( $request ) {
+	$request = is_array( $request ) ? $request : array();
+	$email   = sanitize_email( $request['email'] ?? '' );
+	$name    = sanitize_text_field( $request['name'] ?? '' );
+	if ( ! is_email( $email ) || '' === $name ) {
+		return false;
+	}
+	$collection = sanitize_text_field( $request['collection'] ?? '' );
+	$subject    = sanitize_text_field( $request['subject'] ?? '' );
+	$details    = array_filter(
+		array(
+			$collection ? sprintf( __( 'Collection : %s', 'photovault' ), $collection ) : '',
+			$subject ? sprintf( __( 'Sujet : %s', 'photovault' ), $subject ) : '',
+		)
+	);
+	$client_content = array(
+		'preheader'    => __( 'Votre demande d acces protege est enregistree.', 'photovault' ),
+		'eyebrow'      => __( 'Archives protegees', 'photovault' ),
+		'title'        => __( 'Demande bien recue', 'photovault' ),
+		'greeting'     => sprintf( __( 'Bonjour %s,', 'photovault' ), $name ),
+		'intro'        => __( 'Le studio va examiner votre demande et vous informera de sa decision.', 'photovault' ),
+		'details'      => $details,
+		'action_url'   => add_query_arg( 'section', 'access', home_url( '/dashboard/' ) ),
+		'action_label' => __( 'Suivre ma demande', 'photovault' ),
+		'notice'       => __( 'Cette confirmation ne constitue pas encore une autorisation d acces.', 'photovault' ),
+	);
+	$admin_content = array(
+		'preheader'    => __( 'Une nouvelle demande d acces attend une decision.', 'photovault' ),
+		'eyebrow'      => __( 'Administration PhotoVault', 'photovault' ),
+		'title'        => __( 'Nouvelle demande d acces', 'photovault' ),
+		'greeting'     => sprintf( __( 'Demande de %s', 'photovault' ), $name ),
+		'intro'        => sanitize_textarea_field( $request['message'] ?? '' ),
+		'details'      => array_merge( array( sprintf( __( 'E-mail : %s', 'photovault' ), $email ) ), $details ),
+		'action_url'   => admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending' ),
+		'action_label' => __( 'Examiner la demande', 'photovault' ),
+	);
+	$client_sent = photovault_send_transactional_email( $email, __( '[PhotoVault] Demande d acces recue', 'photovault' ), $client_content );
+	$admin_sent  = photovault_send_transactional_email( get_option( 'admin_email' ), __( '[PhotoVault] Nouvelle demande d acces', 'photovault' ), $admin_content, $email );
+
+	return $client_sent && $admin_sent;
+}
+
+/** Notify the requester after an approved or rejected access decision. */
+function photovault_send_access_request_decision_email( $request, $status ) {
+	$request = is_array( $request ) ? $request : array();
+	$status  = sanitize_key( $status );
+	$email   = sanitize_email( $request['email'] ?? '' );
+	if ( ! is_email( $email ) || ! in_array( $status, array( 'approved', 'rejected' ), true ) ) {
+		return false;
+	}
+	$approved = 'approved' === $status;
+	$content  = array(
+		'preheader'    => $approved ? __( 'Votre acces PhotoVault est disponible.', 'photovault' ) : __( 'Decision concernant votre demande PhotoVault.', 'photovault' ),
+		'eyebrow'      => __( 'Archives protegees', 'photovault' ),
+		'title'        => $approved ? __( 'Acces autorise', 'photovault' ) : __( 'Demande non retenue', 'photovault' ),
+		'greeting'     => sprintf( __( 'Bonjour %s,', 'photovault' ), sanitize_text_field( $request['name'] ?? '' ) ),
+		'intro'        => $approved ? __( 'Votre demande a ete approuvee. Connectez-vous avec le compte associe a cette adresse pour consulter la collection.', 'photovault' ) : __( 'Votre demande ne peut pas etre approuvee dans son etat actuel. Vous pouvez contacter le studio pour apporter des precisions.', 'photovault' ),
+		'details'      => array_filter( array( ! empty( $request['collection'] ) ? sprintf( __( 'Collection : %s', 'photovault' ), sanitize_text_field( $request['collection'] ) ) : '' ) ),
+		'action_url'   => $approved ? home_url( '/gallery/' ) : home_url( '/contact/' ),
+		'action_label' => $approved ? __( 'Ouvrir la galerie', 'photovault' ) : __( 'Contacter le studio', 'photovault' ),
+		'notice'       => $approved ? __( 'Cet acces est personnel et peut etre revoque par le studio.', 'photovault' ) : __( 'Aucune collection protegee n a ete ouverte par cette decision.', 'photovault' ),
+	);
+
+	return photovault_send_transactional_email( $email, $approved ? __( '[PhotoVault] Acces autorise', 'photovault' ) : __( '[PhotoVault] Demande d acces refusee', 'photovault' ), $content, get_option( 'admin_email' ) );
+}
+
 function photovault_create_access_request( $data ) {
 	global $wpdb;
 
@@ -134,6 +201,19 @@ function photovault_create_access_request( $data ) {
 	$request_id = absint( $wpdb->insert_id );
 	if ( function_exists( 'photovault_log_media_event' ) ) {
 		photovault_log_media_event( 'access_request_created', 'info', 0, array( 'request_id' => $request_id, 'has_collection' => '' !== $collection, 'user_id' => get_current_user_id() ?: 0 ) );
+	}
+	$notifications_sent = photovault_send_access_request_notifications(
+		array(
+			'id'         => $request_id,
+			'name'       => $name,
+			'email'      => $email,
+			'subject'    => $subject,
+			'collection' => $collection,
+			'message'    => $message,
+		)
+	);
+	if ( ! $notifications_sent && function_exists( 'photovault_log_media_event' ) ) {
+		photovault_log_media_event( 'access_request_notification_failed', 'warning', 0, array( 'request_id' => $request_id ) );
 	}
 
 	return $request_id;
@@ -442,20 +522,24 @@ function photovault_handle_access_request_status_update() {
 	}
 
 	check_admin_referer( 'photovault_update_access_request_status_' . $request_id );
+	$request = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . photovault_get_access_requests_table() . ' WHERE id = %d LIMIT 1', $request_id ), ARRAY_A );
+	if ( ! $request ) {
+		wp_die( esc_html__( 'Demande introuvable.', 'photovault' ) );
+	}
 
 	$updated = 'true';
+	$wpdb->query( 'START TRANSACTION' );
 	if ( 'approved' === $new_status ) {
 		$grant = photovault_create_access_grant_from_request( $request_id );
 		if ( is_wp_error( $grant ) ) {
+			$wpdb->query( 'ROLLBACK' );
 			$updated = 'folder_not_found' === $grant->get_error_code() ? 'grant_missing_folder' : 'grant_failed';
+			wp_safe_redirect( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending&updated=' . $updated ) );
+			exit;
 		}
 	}
 
-	if ( function_exists( 'photovault_log_media_event' ) ) {
-		photovault_log_media_event( 'access_request_status_updated', 'info', 0, array( 'request_id' => $request_id, 'new_status' => $new_status, 'grant_result' => $updated ) );
-	}
-
-	$wpdb->update(
+	$status_updated = $wpdb->update(
 		photovault_get_access_requests_table(),
 		array(
 			'status'     => $new_status,
@@ -465,6 +549,18 @@ function photovault_handle_access_request_status_update() {
 		array( '%s', '%s' ),
 		array( '%d' )
 	);
+	if ( false === $status_updated ) {
+		$wpdb->query( 'ROLLBACK' );
+		wp_safe_redirect( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending&updated=db_failed' ) );
+		exit;
+	}
+	if ( function_exists( 'photovault_log_media_event' ) ) {
+		photovault_log_media_event( 'access_request_status_updated', 'info', 0, array( 'request_id' => $request_id, 'new_status' => $new_status, 'grant_result' => $updated ) );
+	}
+	$wpdb->query( 'COMMIT' );
+	if ( ! photovault_send_access_request_decision_email( $request, $new_status ) && function_exists( 'photovault_log_media_event' ) ) {
+		photovault_log_media_event( 'access_request_decision_notification_failed', 'warning', 0, array( 'request_id' => $request_id, 'status' => $new_status ) );
+	}
 
 	wp_safe_redirect( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending&updated=' . $updated ) );
 	exit;

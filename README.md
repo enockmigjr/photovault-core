@@ -16,6 +16,8 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Journaliser previews, downloads, refus, demandes et grants.
 - Fournir une bibliotheque personnelle de favoris, un historique de telechargements et les acces du compte sans fuite entre utilisateurs.
 - Gerer les demandes de shootings privees, leur ownership, leurs transitions serveur et leurs notifications transactionnelles.
+- Envoyer les notifications multipart des demandes d'acces: accuse client, alerte studio avec `Reply-To` et decisions approuvee/refusee.
+- Conserver l'approbation d'acces atomique entre creation du grant et mise a jour du statut.
 - Fournir un espace d'import administrateur avec progression fichier par fichier et edition immediate des metadonnees.
 
 ## Capabilities
@@ -94,6 +96,7 @@ La commande traite les originaux proteges/prives existants par lots.
 8. Executer `wp eval-file tests/runtime-shootings.php` pour verifier validation, ownership, transitions, administration et e-mails.
 9. Executer `wp eval-file tests/runtime-media-management.php` pour verifier metadonnees, tags, isolation des comptes et acces a l'import.
 10. Executer `wp eval-file tests/runtime-media-authorization.php` pour verifier roles, grants, ID guessing, pagination privee, nonces et refus de telechargement.
+11. Executer `wp eval-file tests/runtime-email-notifications.php` pour verifier layout HTML, texte alternatif, `Reply-To`, notifications d'acces et remise SMTP.
 
 ## Documentation liee
 
