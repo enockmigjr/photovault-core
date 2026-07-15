@@ -15,6 +15,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Deplacer les originaux proteges/prives vers un stockage prive quand le traitement est applique.
 - Journaliser previews, downloads, refus, demandes et grants.
 - Fournir une bibliotheque personnelle de favoris, un historique de telechargements et les acces du compte sans fuite entre utilisateurs.
+- Gerer les demandes de shootings privees, leur ownership, leurs transitions serveur et leurs notifications transactionnelles.
 
 ## Capabilities
 
@@ -22,6 +23,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - `photovault_manage_media`
 - `photovault_view_private_media`
 - `photovault_manage_settings`
+- `photovault_manage_shootings`
 
 `manage_options` reste accepte comme fallback administrateur dans les helpers PhotoVault.
 
@@ -44,6 +46,9 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - `_photovault_original_url`
 - `_photovault_private_original_path`
 - `_photovault_private_original_secured_at`
+- `_photovault_shooting_type`, `_photovault_shooting_date`, `_photovault_shooting_location`
+- `_photovault_shooting_contact_name`, `_photovault_shooting_contact_email`, `_photovault_shooting_contact_phone`
+- `_photovault_shooting_status`, `_photovault_shooting_updated_at`
 
 ## Endpoints et actions
 
@@ -54,6 +59,8 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - `DELETE /wp-json/photovault/v1/favorites/{id}`
 - `admin_post_photovault_update_access_request_status`
 - `admin_post_photovault_secure_existing_originals`
+- `admin_post_photovault_create_shooting`
+- `admin_post_photovault_shooting_transition`
 
 ## WP-CLI
 
@@ -70,6 +77,7 @@ La commande traite les originaux proteges/prives existants par lots.
 - `photovault_max_upload_files`
 - `photovault_private_originals_dir`
 - `photovault_protected_preview_cache_dir`
+- `photovault_shooting_types`
 
 ## Verification minimale
 
@@ -80,6 +88,7 @@ La commande traite les originaux proteges/prives existants par lots.
 5. Verifier que le serveur web refuse l'acces direct a `wp-content/photovault-private/`.
 6. Lancer `wp photovault secure-originals --limit=25` si WP-CLI est disponible.
 7. Executer `wp eval-file tests/runtime-user-library.php` pour verifier favoris, isolation, historique, acces et permissions REST.
+8. Executer `wp eval-file tests/runtime-shootings.php` pour verifier validation, ownership, transitions, administration et e-mails.
 
 ## Documentation liee
 

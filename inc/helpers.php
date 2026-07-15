@@ -15,6 +15,7 @@ if ( ! function_exists( 'photovault_get_core_capabilities' ) ) {
 		return array(
 			'photovault_manage_platform',
 			'photovault_manage_media',
+			'photovault_manage_shootings',
 			'photovault_view_private_media',
 			'photovault_manage_settings',
 		);

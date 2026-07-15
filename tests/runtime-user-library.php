@@ -110,7 +110,7 @@ try {
 
 	echo wp_json_encode(
 		array(
-			'migration'         => '0.2.0',
+			'migration'         => PHOTOVAULT_CORE_VERSION,
 			'favorites'         => 'idempotent_and_user_isolated',
 			'private_filtering' => true,
 			'download_history'  => true,
