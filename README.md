@@ -16,6 +16,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Journaliser previews, downloads, refus, demandes et grants.
 - Fournir une bibliotheque personnelle de favoris, un historique de telechargements et les acces du compte sans fuite entre utilisateurs.
 - Gerer les demandes de shootings privees, leur ownership, leurs transitions serveur et leurs notifications transactionnelles.
+- Gerer les categories de contact public, la notification studio et l'accuse de reception du visiteur.
 - Envoyer les notifications multipart des demandes d'acces: accuse client, alerte studio avec `Reply-To` et decisions approuvee/refusee.
 - Conserver l'approbation d'acces atomique entre creation du grant et mise a jour du statut.
 - Fournir un espace d'import administrateur avec progression fichier par fichier et edition immediate des metadonnees.
