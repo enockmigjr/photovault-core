@@ -387,6 +387,40 @@ function photovault_restrict_media_query_where( $where, $user_id ) {
 	return $where . ')';
 }
 
+/** Include accessible private media in the first server-rendered archive query. */
+function photovault_prepare_front_media_query( $query ) {
+	if ( is_admin() || ! $query instanceof WP_Query || ! $query->is_main_query() ) {
+		return;
+	}
+
+	$is_media_surface = $query->is_post_type_archive( 'media_item' ) || $query->is_tax( array( 'media_folder', 'media_category', 'media_tag' ) );
+	if ( ! $is_media_surface ) {
+		return;
+	}
+
+	$query->set( 'post_type', 'media_item' );
+	if ( ! is_user_logged_in() ) {
+		$query->set( 'post_status', array( 'publish' ) );
+		return;
+	}
+
+	$query->set( 'post_status', array( 'publish', 'private' ) );
+	if ( ! photovault_current_user_can( 'photovault_manage_media' ) ) {
+		$query->set( '_photovault_front_visibility', 1 );
+	}
+}
+add_action( 'pre_get_posts', 'photovault_prepare_front_media_query', 20 );
+
+/** Apply owner/grant visibility before SQL pagination totals are calculated. */
+function photovault_filter_front_media_query_where( $where, $query ) {
+	if ( ! $query instanceof WP_Query || ! $query->get( '_photovault_front_visibility' ) ) {
+		return $where;
+	}
+
+	return photovault_restrict_media_query_where( $where, get_current_user_id() );
+}
+add_filter( 'posts_where', 'photovault_filter_front_media_query_where', 10, 2 );
+
 function photovault_get_filtered_media( $request ) {
 	if ( function_exists( 'photovault_rate_limit' ) && ! photovault_rate_limit( 'media_filter', 90, 60 ) ) {
 		return new WP_Error( 'too_many_requests', 'Trop de requetes. Veuillez patienter.', array( 'status' => 429 ) );

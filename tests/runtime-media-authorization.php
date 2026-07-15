@@ -47,6 +47,7 @@ $attachment_id    = 0;
 $attachment_path  = '';
 $request_id       = 0;
 $grant_id         = 0;
+$previous_wp_the_query = isset( $GLOBALS['wp_the_query'] ) ? $GLOBALS['wp_the_query'] : null;
 
 try {
 	photovault_core_activate();
@@ -175,6 +176,24 @@ try {
 	wp_set_current_user( $user_ids['granted'] );
 	$granted_list = photovault_media_authorization_list();
 	photovault_media_authorization_assert( in_array( $media_ids['private_a'], $granted_list['ids'], true ) && ! in_array( $media_ids['private_b'], $granted_list['ids'], true ), 'Collection grant was not scoped to one folder.' );
+	$front_query = new WP_Query();
+	$front_query->is_archive = true;
+	$front_query->is_post_type_archive = true;
+	$front_query->set( 'post_type', 'media_item' );
+	$GLOBALS['wp_the_query'] = $front_query;
+	photovault_prepare_front_media_query( $front_query );
+	photovault_media_authorization_assert( array( 'publish', 'private' ) === $front_query->get( 'post_status' ) && 1 === (int) $front_query->get( '_photovault_front_visibility' ), 'The initial archive query did not enable scoped private visibility.' );
+	$front_results = new WP_Query(
+		array(
+			'post_type'                    => 'media_item',
+			'post_status'                  => array( 'publish', 'private' ),
+			'posts_per_page'               => 20,
+			'fields'                       => 'ids',
+			'_photovault_front_visibility' => 1,
+		)
+	);
+	$front_ids = array_map( 'intval', $front_results->posts );
+	photovault_media_authorization_assert( in_array( $media_ids['private_a'], $front_ids, true ) && ! in_array( $media_ids['private_b'], $front_ids, true ), 'The server-rendered archive did not preserve collection grant scope.' );
 	photovault_media_authorization_assert( true === photovault_add_user_favorite( $user_ids['granted'], $media_ids['private_a'] ), 'Granted user could not favorite an accessible private media.' );
 	$forbidden_favorite = photovault_add_user_favorite( $user_ids['granted'], $media_ids['private_b'] );
 	photovault_media_authorization_assert( is_wp_error( $forbidden_favorite ) && 'photovault_favorite_unavailable' === $forbidden_favorite->get_error_code(), 'Granted user favorited media outside the granted collection.' );
@@ -210,6 +229,13 @@ try {
 		photovault_media_authorization_assert( 4 === count( array_intersect( array_values( $media_ids ), $privileged_list['ids'] ) ), ucfirst( $label ) . ' could not list all media.' );
 		photovault_media_authorization_assert( photovault_user_can_edit_media_item( $media_ids['private_b'] ), ucfirst( $label ) . ' could not manage private media.' );
 		photovault_media_authorization_assert( photovault_rest_upload_media_permission(), ucfirst( $label ) . ' could not access media import.' );
+		$manager_front_query = new WP_Query();
+		$manager_front_query->is_archive = true;
+		$manager_front_query->is_post_type_archive = true;
+		$manager_front_query->set( 'post_type', 'media_item' );
+		$GLOBALS['wp_the_query'] = $manager_front_query;
+		photovault_prepare_front_media_query( $manager_front_query );
+		photovault_media_authorization_assert( array( 'publish', 'private' ) === $manager_front_query->get( 'post_status' ) && ! $manager_front_query->get( '_photovault_front_visibility' ), ucfirst( $label ) . ' front archive did not expose the complete administrative catalogue.' );
 	}
 
 	echo wp_json_encode(
@@ -221,10 +247,12 @@ try {
 			'invalid_download_nonce'  => 'denied',
 			'collection_grant_scope'  => 'isolated',
 			'owner_manager_admin'     => 'authorized',
+			'front_archive_visibility' => 'owner_grant_manager_scoped_before_pagination',
 		)
 	);
 } finally {
 	wp_set_current_user( $previous_user_id );
+	$GLOBALS['wp_the_query'] = $previous_wp_the_query;
 	if ( $grant_id ) {
 		$wpdb->delete( photovault_get_access_grants_table(), array( 'id' => $grant_id ), array( '%d' ) );
 	}
