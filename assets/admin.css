@@ -69,6 +69,68 @@
 	min-width: 820px;
 }
 
+.pv-admin .pv-access-status-tabs {
+	display: flex;
+	clear: both;
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+	gap: 4px;
+	margin: 0 0 16px;
+	overflow-x: auto;
+	border-bottom: 1px solid #c3c4c7;
+	white-space: nowrap;
+}
+
+.pv-admin .pv-access-status-tabs a {
+	display: inline-flex;
+	min-height: 40px;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 8px;
+	box-sizing: border-box;
+	margin-bottom: -1px;
+	padding: 0 14px;
+	border: 1px solid transparent;
+	color: #2c3338;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.pv-admin .pv-access-status-tabs a:hover,
+.pv-admin .pv-access-status-tabs a:focus-visible {
+	color: #135e96;
+	background: #f6f7f7;
+}
+
+.pv-admin .pv-access-status-tabs a.is-active {
+	border-color: #c3c4c7 #c3c4c7 #fff;
+	background: #fff;
+	color: #135e96;
+}
+
+.pv-admin .pv-access-status-tabs strong {
+	min-width: 1.5rem;
+	padding: 2px 6px;
+	border-radius: 10px;
+	background: #e2e4e7;
+	color: #50575e;
+	font-size: 11px;
+	line-height: 1.4;
+	text-align: center;
+}
+
+.pv-admin .pv-access-status-tabs a.is-active strong {
+	background: #2271b1;
+	color: #fff;
+}
+
+.pv-admin .pv-access-status-tabs + .pv-table-wrap {
+	clear: both;
+	width: 100%;
+	margin-top: 0;
+}
+
 .pv-admin details summary {
 	cursor: pointer;
 	color: #2271b1;
@@ -148,5 +210,9 @@
 	.pv-admin-pagination {
 		justify-content: flex-start;
 		overflow-x: auto;
+	}
+	.pv-admin .pv-access-status-tabs a {
+		min-height: 44px;
+		padding: 0 12px;
 	}
 }

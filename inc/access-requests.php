@@ -470,12 +470,27 @@ function photovault_render_access_requests_page() {
 			<?php photovault_render_access_count_card( __( 'Refusees', 'photovault' ), $counts['rejected'], __( 'Non retenues', 'photovault' ) ); ?>
 		</div>
 
-		<p class="subsubsub">
-			<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending' ) ); ?>"><?php esc_html_e( 'En attente', 'photovault' ); ?></a> |
-			<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=approved' ) ); ?>"><?php esc_html_e( 'Approuvees', 'photovault' ); ?></a> |
-			<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=rejected' ) ); ?>"><?php esc_html_e( 'Refusees', 'photovault' ); ?></a> |
-			<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=' ) ); ?>"><?php esc_html_e( 'Toutes', 'photovault' ); ?></a>
-		</p>
+		<nav class="pv-access-status-tabs" aria-label="<?php esc_attr_e( 'Filtrer les demandes par statut', 'photovault' ); ?>">
+			<?php
+			$filter_items = array(
+				'pending'  => array( __( 'En attente', 'photovault' ), $counts['pending'] ),
+				'approved' => array( __( 'Approuvees', 'photovault' ), $counts['approved'] ),
+				'rejected' => array( __( 'Refusees', 'photovault' ), $counts['rejected'] ),
+				''         => array( __( 'Toutes', 'photovault' ), array_sum( $counts ) ),
+			);
+			foreach ( $filter_items as $filter_status => $filter_item ) :
+				$filter_url = add_query_arg(
+					array(
+						'post_type'      => 'media_item',
+						'page'           => 'photovault-access-requests',
+						'request_status' => $filter_status,
+					),
+					admin_url( 'edit.php' )
+				);
+				?>
+				<a class="<?php echo $status === $filter_status ? 'is-active' : ''; ?>" href="<?php echo esc_url( $filter_url ); ?>" <?php echo $status === $filter_status ? 'aria-current="page"' : ''; ?>><span><?php echo esc_html( $filter_item[0] ); ?></span><strong><?php echo esc_html( number_format_i18n( $filter_item[1] ) ); ?></strong></a>
+			<?php endforeach; ?>
+		</nav>
 
 		<div class="pv-table-wrap"><table class="widefat fixed striped">
 			<thead>
