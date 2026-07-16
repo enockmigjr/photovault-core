@@ -36,19 +36,27 @@ function photovault_register_roles() {
 }
 add_action( 'after_switch_theme', 'photovault_register_roles' );
 
-/**
- * Bloquer l'accès à wp-admin et rediriger tout utilisateur non-administrateur.
- */
+/** Return whether the current request targets a secured front-office endpoint. */
+function photovault_is_frontend_admin_endpoint() {
+	global $pagenow;
+
+	return ( defined( 'DOING_AJAX' ) && DOING_AJAX ) || in_array( $pagenow, array( 'admin-ajax.php', 'admin-post.php' ), true );
+}
+
+/** Return whether the current account may use the native WordPress admin UI. */
+function photovault_current_user_can_access_admin() {
+	return current_user_can( 'edit_posts' ) || current_user_can( 'upload_files' ) || photovault_current_user_can( 'photovault_manage_platform' );
+}
+
+/** Restrict the admin UI while preserving secured front-office endpoints. */
 function photovault_restrict_admin_access() {
-	if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+	if ( photovault_is_frontend_admin_endpoint() ) {
 		return;
 	}
 
-	if ( is_user_logged_in() ) {
-		if ( ! photovault_current_user_can( 'photovault_manage_platform' ) ) {
-			wp_safe_redirect( home_url() );
-			exit;
-		}
+	if ( is_user_logged_in() && ! photovault_current_user_can_access_admin() ) {
+		wp_safe_redirect( home_url( '/dashboard/' ) );
+		exit;
 	}
 }
 add_action( 'admin_init', 'photovault_restrict_admin_access' );
@@ -81,7 +89,7 @@ add_action( 'init', 'photovault_redirect_login_page' );
  * Cacher la barre d'administration pour les utilisateurs non-administrateurs et visiteurs.
  */
 function photovault_hide_admin_bar() {
-	if ( ! photovault_current_user_can( 'photovault_manage_platform' ) ) {
+	if ( ! photovault_current_user_can_access_admin() ) {
 		show_admin_bar( false );
 	}
 }
