@@ -75,7 +75,7 @@ wp photovault secure-originals --limit=25
 wp photovault seed_demo
 ```
 
-La premiere commande traite les originaux proteges/prives existants par lots. La seconde installe une seule fois un dataset de demonstration riche en reutilisant les pieces jointes locales: medias, articles, comptes, demandes d'acces, shootings, audits, abonnes et campagnes lorsque les autres kits sont actifs.
+La premiere commande traite les originaux proteges/prives existants par lots. La seconde installe un dataset de demonstration riche et versionne en reutilisant les pieces jointes locales: medias, articles, comptes, demandes et grants d'acces, shootings, audits, abonnes et campagnes lorsque les autres kits sont actifs. Les executions suivantes appliquent uniquement les complements d'une nouvelle version du seed et ne dupliquent pas les donnees deja installees.
 
 ## Filtres publics
 

@@ -27,6 +27,13 @@ class PhotoVault_Core_CLI_Command {
 	public function seed_demo() {
 		global $wpdb;
 		if ( get_option( 'photovault_demo_seed_completed' ) ) {
+			if ( (int) get_option( 'photovault_demo_seed_version', 1 ) < 2 ) {
+				$grant_count = $this->seed_demo_access_grants();
+				update_option( 'photovault_demo_seed_version', 2, false );
+				WP_CLI::success( sprintf( 'Upgraded the demonstration dataset with %d collection access grants.', $grant_count ) );
+				return;
+			}
+
 			WP_CLI::success( 'The PhotoVault demonstration dataset is already installed.' );
 			return;
 		}
@@ -118,6 +125,7 @@ class PhotoVault_Core_CLI_Command {
 				array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 			);
 		}
+		$this->seed_demo_access_grants();
 
 		$shooting_types = array_keys( photovault_get_shooting_types() );
 		$shooting_statuses = array_keys( photovault_get_shooting_statuses() );
@@ -179,7 +187,36 @@ class PhotoVault_Core_CLI_Command {
 		}
 
 		update_option( 'photovault_demo_seed_completed', current_time( 'mysql', true ), false );
+		update_option( 'photovault_demo_seed_version', 2, false );
 		WP_CLI::success( sprintf( 'Seeded %d media, 12 articles, %d visitors, 45 access requests, 36 shootings and operational logs.', count( $media_ids ), count( $user_ids ) ) );
+	}
+
+	/**
+	 * Grant the approved demo requests without touching real visitor requests.
+	 *
+	 * @return int Number of active demo grants resolved.
+	 */
+	private function seed_demo_access_grants() {
+		global $wpdb;
+
+		$requests_table = photovault_get_access_requests_table();
+		$request_ids    = $wpdb->get_col(
+			$wpdb->prepare(
+				// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Internal schema table; values remain prepared.
+				"SELECT id FROM {$requests_table} WHERE email LIKE %s AND status = %s ORDER BY id ASC",
+				'demo.visitor%@photovault.test',
+				'approved'
+			)
+		);
+		$grant_ids = array();
+		foreach ( $request_ids as $request_id ) {
+			$grant_id = photovault_create_access_grant_from_request( $request_id );
+			if ( ! is_wp_error( $grant_id ) ) {
+				$grant_ids[] = absint( $grant_id );
+			}
+		}
+
+		return count( array_unique( $grant_ids ) );
 	}
 
 	/**
