@@ -397,24 +397,35 @@ function photovault_get_access_request_counts() {
 	return $counts;
 }
 
-function photovault_get_access_requests( $status = '', $limit = 30 ) {
+function photovault_get_access_requests( $status = '', $limit = 30, $offset = 0 ) {
 	global $wpdb;
 
 	$table_name = photovault_get_access_requests_table();
 	$limit      = max( 1, min( 100, absint( $limit ) ) );
 	$status     = sanitize_key( $status );
+	$offset     = absint( $offset );
 
 	if ( $status ) {
 		return $wpdb->get_results(
-			$wpdb->prepare( "SELECT * FROM {$table_name} WHERE status = %s ORDER BY created_at DESC LIMIT %d", $status, $limit ),
+			$wpdb->prepare( "SELECT * FROM {$table_name} WHERE status = %s ORDER BY created_at DESC LIMIT %d OFFSET %d", $status, $limit, $offset ),
 			ARRAY_A
 		);
 	}
 
 	return $wpdb->get_results(
-		$wpdb->prepare( "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT %d", $limit ),
+		$wpdb->prepare( "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT %d OFFSET %d", $limit, $offset ),
 		ARRAY_A
 	);
+}
+
+function photovault_count_access_requests( $status = '' ) {
+	global $wpdb;
+	$status = sanitize_key( $status );
+	$table  = photovault_get_access_requests_table();
+
+	return $status
+		? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE status = %s", $status ) )
+		: (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
 }
 
 function photovault_register_access_requests_admin_menu() {
@@ -439,11 +450,14 @@ function photovault_render_access_requests_page() {
 		$status = 'pending';
 	}
 
-	$updated = isset( $_GET['updated'] ) ? sanitize_key( wp_unslash( $_GET['updated'] ) ) : '';
-	$counts   = photovault_get_access_request_counts();
-	$requests = photovault_get_access_requests( $status, 50 );
+	$updated      = isset( $_GET['updated'] ) ? sanitize_key( wp_unslash( $_GET['updated'] ) ) : '';
+	$current_page = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
+	$per_page     = 25;
+	$counts       = photovault_get_access_request_counts();
+	$total        = photovault_count_access_requests( $status );
+	$requests     = photovault_get_access_requests( $status, $per_page, ( $current_page - 1 ) * $per_page );
 	?>
-	<div class="wrap photovault-access-admin">
+	<div class="wrap photovault-access-admin pv-admin">
 		<h1><?php esc_html_e( 'Demandes d acces protege', 'photovault' ); ?></h1>
 		<p><?php esc_html_e( 'Suivi manuel des visiteurs qui demandent a consulter une collection, une serie privee ou une archive confidentielle.', 'photovault' ); ?></p>
 		<?php if ( $updated ) : ?>
@@ -463,7 +477,7 @@ function photovault_render_access_requests_page() {
 			<a href="<?php echo esc_url( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=' ) ); ?>"><?php esc_html_e( 'Toutes', 'photovault' ); ?></a>
 		</p>
 
-		<table class="widefat fixed striped">
+		<div class="pv-table-wrap"><table class="widefat fixed striped">
 			<thead>
 				<tr>
 					<th><?php esc_html_e( 'Demandeur', 'photovault' ); ?></th>
@@ -501,9 +515,9 @@ function photovault_render_access_requests_page() {
 					<?php endforeach; ?>
 				<?php endif; ?>
 			</tbody>
-		</table>
+		</table></div>
+		<?php photovault_render_admin_pagination( $total, $per_page, $current_page, admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=' . rawurlencode( $status ) ) ); ?>
 	</div>
-	<style>.photovault-access-admin .pv-access-grid-compact{grid-template-columns:repeat(3,minmax(0,1fr));max-width:900px}</style>
 	<?php
 }
 

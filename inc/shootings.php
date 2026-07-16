@@ -346,17 +346,19 @@ function photovault_render_shootings_admin_page() {
 	if ( ! photovault_current_user_can( 'photovault_manage_shootings' ) ) {
 		wp_die( esc_html__( 'Acces refuse.', 'photovault' ) );
 	}
-	$query = new WP_Query( array( 'post_type' => 'photovault_shooting', 'post_status' => 'private', 'posts_per_page' => 100, 'orderby' => 'date', 'order' => 'DESC' ) );
+	$current_page = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
+	$per_page = 25;
+	$query = new WP_Query( array( 'post_type' => 'photovault_shooting', 'post_status' => 'private', 'posts_per_page' => $per_page, 'paged' => $current_page, 'orderby' => 'date', 'order' => 'DESC' ) );
 	$types = photovault_get_shooting_types();
 	$statuses = photovault_get_shooting_statuses();
 	$notice = isset( $_GET['shooting'] ) ? sanitize_key( wp_unslash( $_GET['shooting'] ) ) : '';
 	?>
-	<div class="wrap"><h1><?php esc_html_e( 'Reservations de shootings', 'photovault' ); ?></h1><p><?php esc_html_e( 'Confirmez les projets, annulez les demandes impossibles et marquez les seances realisees.', 'photovault' ); ?></p>
+	<div class="wrap pv-admin"><h1><?php esc_html_e( 'Reservations de shootings', 'photovault' ); ?></h1><p><?php esc_html_e( 'Confirmez les projets, annulez les demandes impossibles et marquez les seances realisees.', 'photovault' ); ?></p>
 	<?php if ( $notice ) : ?><div class="notice <?php echo 'updated' === $notice ? 'notice-success' : 'notice-error'; ?> is-dismissible"><p><?php echo esc_html( 'updated' === $notice ? __( 'Le statut de la reservation a ete mis a jour et le client a ete informe.', 'photovault' ) : __( 'Le statut n a pas pu etre modifie.', 'photovault' ) ); ?></p></div><?php endif; ?>
-	<table class="widefat fixed striped"><thead><tr><th><?php esc_html_e( 'Client', 'photovault' ); ?></th><th><?php esc_html_e( 'Projet', 'photovault' ); ?></th><th><?php esc_html_e( 'Date et lieu', 'photovault' ); ?></th><th><?php esc_html_e( 'Statut', 'photovault' ); ?></th><th><?php esc_html_e( 'Actions', 'photovault' ); ?></th></tr></thead><tbody>
+	<div class="pv-table-wrap"><table class="widefat fixed striped"><thead><tr><th><?php esc_html_e( 'Client', 'photovault' ); ?></th><th><?php esc_html_e( 'Projet', 'photovault' ); ?></th><th><?php esc_html_e( 'Date et lieu', 'photovault' ); ?></th><th><?php esc_html_e( 'Statut', 'photovault' ); ?></th><th><?php esc_html_e( 'Actions', 'photovault' ); ?></th></tr></thead><tbody>
 	<?php if ( ! $query->posts ) : ?><tr><td colspan="5"><?php esc_html_e( 'Aucune reservation.', 'photovault' ); ?></td></tr><?php endif; ?>
 	<?php foreach ( $query->posts as $post ) : $item = photovault_get_shooting_data( $post->ID ); $allowed = photovault_get_shooting_transitions()[ $item['status'] ] ?? array(); ?>
 	<tr><td><strong><?php echo esc_html( $item['contact_name'] ); ?></strong><br><a href="mailto:<?php echo esc_attr( $item['contact_email'] ); ?>"><?php echo esc_html( $item['contact_email'] ); ?></a><br><?php echo esc_html( $item['contact_phone'] ); ?></td><td><strong><?php echo esc_html( $types[ $item['type'] ] ?? $item['type'] ); ?></strong><p><?php echo esc_html( $item['message'] ); ?></p></td><td><?php echo esc_html( wp_date( get_option( 'date_format' ), strtotime( $item['desired_date'] ) ) ); ?><br><?php echo esc_html( $item['location'] ); ?></td><td><?php echo esc_html( $statuses[ $item['status'] ] ?? $item['status'] ); ?></td><td><?php foreach ( $allowed as $next ) : ?><form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin:0 6px 6px 0"><input type="hidden" name="action" value="photovault_shooting_transition"><input type="hidden" name="shooting_id" value="<?php echo esc_attr( $item['id'] ); ?>"><input type="hidden" name="shooting_status" value="<?php echo esc_attr( $next ); ?>"><?php wp_nonce_field( 'photovault_shooting_transition_' . $item['id'], 'photovault_shooting_nonce' ); ?><button class="button<?php echo 'confirmed' === $next || 'completed' === $next ? ' button-primary' : ''; ?>" type="submit"><?php echo esc_html( $statuses[ $next ] ); ?></button></form><?php endforeach; ?></td></tr>
-	<?php endforeach; ?></tbody></table></div>
+	<?php endforeach; ?></tbody></table></div><?php photovault_render_admin_pagination( $query->found_posts, $per_page, $current_page, admin_url( 'edit.php?post_type=media_item&page=photovault-shootings' ) ); ?></div>
 	<?php
 }

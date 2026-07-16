@@ -1,0 +1,152 @@
+.pv-admin {
+	max-width: 1440px;
+}
+
+.pv-admin > p {
+	max-width: 78ch;
+	color: #50575e;
+}
+
+.pv-admin .pv-access-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: 12px;
+	margin: 20px 0 28px;
+}
+
+.pv-admin .pv-access-card,
+.pv-admin .pv-access-panel {
+	box-sizing: border-box;
+	padding: 18px;
+	border: 1px solid #dcdcde;
+	border-radius: 6px;
+	background: #fff;
+}
+
+.pv-admin .pv-access-card span,
+.pv-admin .pv-access-card em {
+	display: block;
+	color: #646970;
+	font-style: normal;
+}
+
+.pv-admin .pv-access-card span {
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.pv-admin .pv-access-card strong {
+	display: block;
+	margin: 8px 0 4px;
+	font-size: 30px;
+}
+
+.pv-admin .pv-access-panel {
+	margin-top: 16px;
+}
+
+.pv-admin .pv-admin-filters {
+	display: flex;
+	align-items: end;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin: 18px 0;
+}
+
+.pv-admin .pv-admin-filters label {
+	display: grid;
+	gap: 5px;
+	font-weight: 600;
+}
+
+.pv-admin .pv-table-wrap {
+	overflow-x: auto;
+	margin-top: 16px;
+}
+
+.pv-admin .pv-table-wrap table {
+	min-width: 820px;
+}
+
+.pv-admin details summary {
+	cursor: pointer;
+	color: #2271b1;
+	font-weight: 600;
+}
+
+.pv-admin details pre {
+	max-width: 560px;
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.pv-admin-pagination {
+	display: flex;
+	justify-content: flex-end;
+	margin: 18px 0 28px;
+}
+
+.pv-admin-pagination ul {
+	display: flex;
+	gap: 4px;
+	margin: 0;
+}
+
+.pv-admin-pagination li {
+	margin: 0;
+}
+
+.pv-admin-pagination a,
+.pv-admin-pagination span {
+	display: inline-flex;
+	min-height: 32px;
+	align-items: center;
+	padding: 0 10px;
+	border: 1px solid #c3c4c7;
+	background: #fff;
+	text-decoration: none;
+}
+
+.pv-admin-pagination .current {
+	border-color: #2271b1;
+	background: #2271b1;
+	color: #fff;
+}
+
+.pv-admin [aria-busy="true"] .is-busy {
+	opacity: .7;
+	cursor: wait;
+}
+
+.pv-admin [aria-busy="true"] .is-busy::after {
+	content: "";
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	margin-left: 8px;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	vertical-align: -2px;
+	animation: pv-admin-spin .7s linear infinite;
+}
+
+@keyframes pv-admin-spin {
+	to { transform: rotate(360deg); }
+}
+
+@media (max-width: 782px) {
+	.pv-admin .pv-admin-filters {
+		align-items: stretch;
+		flex-direction: column;
+	}
+	.pv-admin .pv-admin-filters > * {
+		width: 100%;
+	}
+	.pv-admin-pagination {
+		justify-content: flex-start;
+		overflow-x: auto;
+	}
+}

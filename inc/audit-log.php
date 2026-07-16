@@ -134,7 +134,7 @@ function photovault_log_media_event( $event, $status = 'info', $media_id = 0, $c
 	return false !== $inserted;
 }
 
-function photovault_get_media_audit_events( $event = '', $status = '', $limit = 80 ) {
+function photovault_get_media_audit_events( $event = '', $status = '', $limit = 80, $offset = 0 ) {
 	global $wpdb;
 
 	$table_name = photovault_get_media_audit_table();
@@ -143,6 +143,7 @@ function photovault_get_media_audit_events( $event = '', $status = '', $limit = 
 	$event      = sanitize_key( $event );
 	$status     = sanitize_key( $status );
 	$limit      = max( 1, min( 200, absint( $limit ) ) );
+	$offset     = absint( $offset );
 
 	if ( $event ) {
 		$where[]  = 'event = %s';
@@ -158,10 +159,29 @@ function photovault_get_media_audit_events( $event = '', $status = '', $limit = 
 	if ( $where ) {
 		$sql .= ' WHERE ' . implode( ' AND ', $where );
 	}
-	$sql     .= ' ORDER BY created_at DESC LIMIT %d';
+	$sql     .= ' ORDER BY created_at DESC LIMIT %d OFFSET %d';
 	$params[] = $limit;
+	$params[] = $offset;
 
 	return $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+}
+
+function photovault_count_media_audit_events( $event = '', $status = '' ) {
+	global $wpdb;
+	$table  = photovault_get_media_audit_table();
+	$where  = array();
+	$params = array();
+	if ( sanitize_key( $event ) ) {
+		$where[]  = 'event = %s';
+		$params[] = sanitize_key( $event );
+	}
+	if ( sanitize_key( $status ) ) {
+		$where[]  = 'status = %s';
+		$params[] = sanitize_key( $status );
+	}
+	$sql = "SELECT COUNT(*) FROM {$table}" . ( $where ? ' WHERE ' . implode( ' AND ', $where ) : '' );
+
+	return (int) ( $params ? $wpdb->get_var( $wpdb->prepare( $sql, $params ) ) : $wpdb->get_var( $sql ) );
 }
 
 function photovault_register_media_audit_admin_menu() {
@@ -181,28 +201,33 @@ function photovault_render_media_audit_page() {
 		wp_die( esc_html__( 'Vous ne pouvez pas consulter l audit PhotoVault.', 'photovault' ) );
 	}
 
-	$event  = isset( $_GET['audit_event'] ) ? sanitize_key( wp_unslash( $_GET['audit_event'] ) ) : '';
-	$status = isset( $_GET['audit_status'] ) ? sanitize_key( wp_unslash( $_GET['audit_status'] ) ) : '';
-	$rows   = photovault_get_media_audit_events( $event, $status, 120 );
+	$event        = isset( $_GET['audit_event'] ) ? sanitize_key( wp_unslash( $_GET['audit_event'] ) ) : '';
+	$status       = isset( $_GET['audit_status'] ) ? sanitize_key( wp_unslash( $_GET['audit_status'] ) ) : '';
+	$current_page = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
+	$per_page     = 30;
+	$total        = photovault_count_media_audit_events( $event, $status );
+	$rows         = photovault_get_media_audit_events( $event, $status, $per_page, ( $current_page - 1 ) * $per_page );
 	?>
-	<div class="wrap photovault-audit-admin">
+	<div class="wrap photovault-audit-admin pv-admin">
 		<h1><?php esc_html_e( 'Audit media PhotoVault', 'photovault' ); ?></h1>
 		<p><?php esc_html_e( 'Historique des apercus, telechargements, refus et grants sensibles. Les IP sont hachees et les secrets ne sont pas conserves.', 'photovault' ); ?></p>
 
-		<form method="GET" class="tablenav top" style="display:flex;gap:8px;align-items:center;margin:16px 0;">
+		<form method="GET" class="pv-admin-filters">
 			<input type="hidden" name="post_type" value="media_item">
 			<input type="hidden" name="page" value="photovault-media-audit">
-			<input type="text" name="audit_event" value="<?php echo esc_attr( $event ); ?>" placeholder="media_download" class="regular-text">
+			<label><?php esc_html_e( 'Evenement', 'photovault' ); ?><input type="text" name="audit_event" value="<?php echo esc_attr( $event ); ?>" placeholder="media_download" class="regular-text"></label>
+			<label><?php esc_html_e( 'Statut', 'photovault' ); ?>
 			<select name="audit_status">
 				<option value=""><?php esc_html_e( 'Tous les statuts', 'photovault' ); ?></option>
 				<?php foreach ( array( 'info', 'success', 'warning', 'error' ) as $status_key ) : ?>
 					<option value="<?php echo esc_attr( $status_key ); ?>" <?php selected( $status, $status_key ); ?>><?php echo esc_html( $status_key ); ?></option>
 				<?php endforeach; ?>
 			</select>
+			</label>
 			<button class="button" type="submit"><?php esc_html_e( 'Filtrer', 'photovault' ); ?></button>
 		</form>
 
-		<table class="widefat fixed striped">
+		<div class="pv-table-wrap"><table class="widefat fixed striped">
 			<thead>
 				<tr>
 					<th><?php esc_html_e( 'Date', 'photovault' ); ?></th>
@@ -230,12 +255,13 @@ function photovault_render_media_audit_page() {
 								<?php endif; ?>
 							</td>
 							<td><?php echo ! empty( $row['user_id'] ) ? esc_html( '#' . absint( $row['user_id'] ) ) : esc_html__( 'Invite', 'photovault' ); ?></td>
-							<td><code><?php echo esc_html( wp_trim_words( (string) $row['context'], 24 ) ); ?></code></td>
+							<td><?php if ( ! empty( $row['context'] ) ) : ?><details><summary><?php esc_html_e( 'Voir les details', 'photovault' ); ?></summary><pre><?php echo esc_html( wp_json_encode( json_decode( $row['context'], true ), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre></details><?php else : ?>&mdash;<?php endif; ?></td>
 						</tr>
 					<?php endforeach; ?>
 				<?php endif; ?>
 			</tbody>
-		</table>
+		</table></div>
+		<?php photovault_render_admin_pagination( $total, $per_page, $current_page, add_query_arg( array( 'post_type' => 'media_item', 'page' => 'photovault-media-audit', 'audit_event' => $event, 'audit_status' => $status ), admin_url( 'edit.php' ) ) ); ?>
 	</div>
 	<?php
 }

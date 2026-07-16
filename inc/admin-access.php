@@ -122,7 +122,7 @@ function photovault_render_access_downloads_page() {
 		)
 	);
 	?>
-	<div class="wrap photovault-access-admin">
+	<div class="wrap photovault-access-admin pv-admin">
 		<h1><?php esc_html_e( 'Acces et telechargements', 'photovault' ); ?></h1>
 		<p><?php esc_html_e( 'Vue operationnelle des medias publics, proteges, prives et des telechargements servis par PhotoVault Core.', 'photovault' ); ?></p>
 		<?php if ( null !== $secured_count || null !== $failed_count ) : ?>
@@ -162,7 +162,7 @@ function photovault_render_access_downloads_page() {
 
 		<section class="pv-access-panel">
 			<h2><?php esc_html_e( 'Medias sensibles ou telecharges recemment', 'photovault' ); ?></h2>
-			<table class="widefat fixed striped">
+			<div class="pv-table-wrap"><table class="widefat fixed striped">
 				<thead>
 					<tr>
 						<th><?php esc_html_e( 'Media', 'photovault' ); ?></th>
@@ -194,11 +194,8 @@ function photovault_render_access_downloads_page() {
 						<?php endforeach; ?>
 					<?php endif; ?>
 				</tbody>
-			</table>
+			</table></div>
 		</section>
 	</div>
-	<style>
-		.photovault-access-admin .pv-access-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:18px 0}.photovault-access-admin .pv-access-card,.photovault-access-admin .pv-access-panel{background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:16px}.photovault-access-admin .pv-access-card span{display:block;color:#646970;font-size:12px;text-transform:uppercase;letter-spacing:.08em}.photovault-access-admin .pv-access-card strong{display:block;margin-top:8px;font-size:28px}.photovault-access-admin .pv-access-card em{display:block;margin-top:4px;color:#646970;font-style:normal}.photovault-access-admin .pv-access-panel{margin-top:16px}.photovault-access-admin .pv-access-policy{list-style:disc;margin-left:20px}@media(max-width:1100px){.photovault-access-admin .pv-access-grid{grid-template-columns:1fr 1fr}}@media(max-width:640px){.photovault-access-admin .pv-access-grid{grid-template-columns:1fr}}
-	</style>
 	<?php
 }

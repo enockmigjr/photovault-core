@@ -2,7 +2,7 @@
 /**
  * Plugin Name: PhotoVault Core
  * Description: Core application layer for PhotoVault media, access rules, REST endpoints, roles, and statistics.
- * Version: 0.5.2
+ * Version: 0.6.0
  * Author: PhotoVault
  * Text Domain: photovault
  */
@@ -11,7 +11,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'PHOTOVAULT_CORE_VERSION', '0.5.2' );
+define( 'PHOTOVAULT_CORE_VERSION', '0.6.0' );
 define( 'PHOTOVAULT_CORE_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PHOTOVAULT_CORE_URI', plugin_dir_url( __FILE__ ) );
 
@@ -23,6 +23,7 @@ $photovault_core_includes = array(
 	'inc/media-handlers.php',
 	'inc/ajax-filters.php',
 	'inc/helpers.php',
+	'inc/admin-ui.php',
 	'inc/admin-access.php',
 	'inc/admin-upload.php',
 	'inc/audit-log.php',

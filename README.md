@@ -72,9 +72,10 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 
 ```bash
 wp photovault secure-originals --limit=25
+wp photovault seed_demo
 ```
 
-La commande traite les originaux proteges/prives existants par lots.
+La premiere commande traite les originaux proteges/prives existants par lots. La seconde installe une seule fois un dataset de demonstration riche en reutilisant les pieces jointes locales: medias, articles, comptes, demandes d'acces, shootings, audits, abonnes et campagnes lorsque les autres kits sont actifs.
 
 ## Filtres publics
 
