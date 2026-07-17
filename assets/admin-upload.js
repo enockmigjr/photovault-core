@@ -8,9 +8,11 @@
         const list = document.getElementById('pv-upload-list');
         const summary = document.getElementById('pv-upload-summary');
         const template = document.getElementById('pv-media-editor-template');
+		const submitButton = form ? form.querySelector('button[type="submit"]') : null;
         let selectedRows = [];
 		let isUploading = false;
         if (!form || !input || !list || !template || !config.uploadUrl) return;
+		if (submitButton) submitButton.disabled = true;
 
         function formatBytes(bytes) {
             if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' Ko';
@@ -19,7 +21,7 @@
 
         function createRow(file) {
             const item = document.createElement('li');
-            item.className = 'pv-upload-item';
+			item.className = 'pv-upload-item is-pending-selection';
             const heading = document.createElement('div');
             heading.className = 'pv-upload-file';
             const name = document.createElement('strong');
@@ -40,10 +42,22 @@
 
         function renderSelection() {
             const files = Array.from(input.files || []);
-            list.replaceChildren();
+			list.querySelectorAll('.is-pending-selection').forEach(function (item) { item.remove(); });
             selectedRows = files.map(createRow);
             summary.textContent = files.length ? files.length + ' fichier(s) pret(s) a importer.' : '';
+			if (submitButton) submitButton.disabled = !files.length;
         }
+
+		function lockQueue(locked) {
+			input.disabled = locked;
+			form.querySelectorAll('select, input[type="checkbox"]').forEach(function (control) {
+				control.disabled = locked;
+			});
+			if (submitButton) {
+				submitButton.disabled = locked || !input.files.length;
+				submitButton.textContent = locked ? 'Import en cours...' : 'Demarrer l import';
+			}
+		}
 
         function uploadFile(file, row) {
             return new Promise(function (resolve) {
@@ -150,9 +164,12 @@
             }
             if (selectedRows.length !== files.length) renderSelection();
             let succeeded = 0;
-			const submitButton = form.querySelector('button[type="submit"]');
 			isUploading = true;
-			if (submitButton) submitButton.disabled = true;
+			selectedRows.forEach(function (row) {
+				row.item.classList.remove('is-pending-selection');
+				row.item.classList.add('is-uploading');
+			});
+			lockQueue(true);
             summary.textContent = 'Import de ' + files.length + ' fichier(s)...';
 			try {
 				for (const [index, file] of files.entries()) {
@@ -167,7 +184,10 @@
 				summary.textContent = succeeded + ' sur ' + files.length + ' fichier(s) importe(s).';
 			} finally {
 				isUploading = false;
-				if (submitButton) submitButton.disabled = false;
+				selectedRows.forEach(function (row) { row.item.classList.remove('is-uploading'); });
+				input.value = '';
+				selectedRows = [];
+				lockQueue(false);
 			}
         });
 
