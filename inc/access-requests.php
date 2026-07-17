@@ -456,6 +456,8 @@ function photovault_render_access_requests_page() {
 	$counts       = photovault_get_access_request_counts();
 	$total        = photovault_count_access_requests( $status );
 	$requests     = photovault_get_access_requests( $status, $per_page, ( $current_page - 1 ) * $per_page );
+	$folders      = get_terms( array( 'taxonomy' => 'media_folder', 'hide_empty' => false ) );
+	$folders      = is_wp_error( $folders ) ? array() : $folders;
 	?>
 	<div class="wrap photovault-access-admin pv-admin">
 		<h1><?php esc_html_e( 'Demandes d acces protege', 'photovault' ); ?></h1>
@@ -522,6 +524,7 @@ function photovault_render_access_requests_page() {
 									<input type="hidden" name="action" value="photovault_update_access_request_status">
 									<input type="hidden" name="request_id" value="<?php echo esc_attr( absint( $request['id'] ) ); ?>">
 									<?php wp_nonce_field( 'photovault_update_access_request_status_' . absint( $request['id'] ) ); ?>
+									<select name="folder_id" aria-label="<?php esc_attr_e( 'Collection à autoriser', 'photovault' ); ?>"><option value="0"><?php esc_html_e( 'Choisir la collection', 'photovault' ); ?></option><?php foreach ( $folders as $available_folder ) : ?><option value="<?php echo esc_attr( $available_folder->term_id ); ?>" <?php selected( $folder ? $folder->term_id : 0, $available_folder->term_id ); ?>><?php echo esc_html( $available_folder->name ); ?></option><?php endforeach; ?></select>
 									<button class="button button-small" name="new_status" value="approved" type="submit"><?php esc_html_e( 'Approuver', 'photovault' ); ?></button>
 									<button class="button button-small" name="new_status" value="rejected" type="submit"><?php esc_html_e( 'Refuser', 'photovault' ); ?></button>
 								</form>
@@ -545,6 +548,7 @@ function photovault_handle_access_request_status_update() {
 
 	$request_id = isset( $_POST['request_id'] ) ? absint( $_POST['request_id'] ) : 0;
 	$new_status = isset( $_POST['new_status'] ) ? sanitize_key( wp_unslash( $_POST['new_status'] ) ) : '';
+	$folder_id  = isset( $_POST['folder_id'] ) ? absint( $_POST['folder_id'] ) : 0;
 
 	if ( ! $request_id || ! in_array( $new_status, array( 'approved', 'rejected' ), true ) ) {
 		wp_die( esc_html__( 'Demande invalide.', 'photovault' ) );
@@ -559,6 +563,16 @@ function photovault_handle_access_request_status_update() {
 	$updated = 'true';
 	$wpdb->query( 'START TRANSACTION' );
 	if ( 'approved' === $new_status ) {
+		$folder = $folder_id ? get_term( $folder_id, 'media_folder' ) : photovault_find_access_folder_from_request( $request );
+		if ( ! $folder || is_wp_error( $folder ) ) {
+			$wpdb->query( 'ROLLBACK' );
+			wp_safe_redirect( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending&updated=grant_missing_folder' ) );
+			exit;
+		}
+		if ( $request['collection'] !== $folder->name ) {
+			$wpdb->update( photovault_get_access_requests_table(), array( 'collection' => $folder->name ), array( 'id' => $request_id ), array( '%s' ), array( '%d' ) );
+			$request['collection'] = $folder->name;
+		}
 		$grant = photovault_create_access_grant_from_request( $request_id );
 		if ( is_wp_error( $grant ) ) {
 			$wpdb->query( 'ROLLBACK' );

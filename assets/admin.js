@@ -7,6 +7,16 @@
 			event.preventDefault();
 			return;
 		}
+		var submitter = event.submitter;
+		if (submitter && submitter.name) {
+			form.querySelectorAll('input[data-pv-submitter]').forEach(function (input) { input.remove(); });
+			var submittedValue = document.createElement('input');
+			submittedValue.type = 'hidden';
+			submittedValue.name = submitter.name;
+			submittedValue.value = submitter.value;
+			submittedValue.dataset.pvSubmitter = 'true';
+			form.appendChild(submittedValue);
+		}
 		form.dataset.pvSubmitting = 'true';
 		form.setAttribute('aria-busy', 'true');
 		form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function (button) {

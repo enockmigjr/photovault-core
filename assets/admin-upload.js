@@ -9,6 +9,7 @@
         const summary = document.getElementById('pv-upload-summary');
         const template = document.getElementById('pv-media-editor-template');
         let selectedRows = [];
+		let isUploading = false;
         if (!form || !input || !list || !template || !config.uploadUrl) return;
 
         function formatBytes(bytes) {
@@ -140,6 +141,7 @@
 
         form.addEventListener('submit', async function (event) {
             event.preventDefault();
+			if (isUploading) return;
             const files = Array.from(input.files || []);
             if (!files.length) return;
             if (files.length > Number(config.maxFiles || 20)) {
@@ -148,17 +150,25 @@
             }
             if (selectedRows.length !== files.length) renderSelection();
             let succeeded = 0;
+			const submitButton = form.querySelector('button[type="submit"]');
+			isUploading = true;
+			if (submitButton) submitButton.disabled = true;
             summary.textContent = 'Import de ' + files.length + ' fichier(s)...';
-            for (const [index, file] of files.entries()) {
-                const row = selectedRows[index];
-                if (file.size > Number(config.maxBytes || 0)) {
-                    row.item.classList.add('is-error');
-                    row.status.textContent = 'Fichier trop volumineux';
-                    continue;
-                }
-                if (await uploadFile(file, row)) succeeded += 1;
-            }
-            summary.textContent = succeeded + ' sur ' + files.length + ' fichier(s) importe(s).';
+			try {
+				for (const [index, file] of files.entries()) {
+					const row = selectedRows[index];
+					if (file.size > Number(config.maxBytes || 0)) {
+						row.item.classList.add('is-error');
+						row.status.textContent = 'Fichier trop volumineux';
+						continue;
+					}
+					if (await uploadFile(file, row)) succeeded += 1;
+				}
+				summary.textContent = succeeded + ' sur ' + files.length + ' fichier(s) importe(s).';
+			} finally {
+				isUploading = false;
+				if (submitButton) submitButton.disabled = false;
+			}
         });
 
         input.addEventListener('change', renderSelection);
