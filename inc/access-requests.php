@@ -215,6 +215,7 @@ function photovault_create_access_request( $data ) {
 	if ( ! $notifications_sent && function_exists( 'photovault_log_media_event' ) ) {
 		photovault_log_media_event( 'access_request_notification_failed', 'warning', 0, array( 'request_id' => $request_id ) );
 	}
+	do_action( 'newsletter_campaign_kit_conversion', 'access_request', null );
 
 	return $request_id;
 }

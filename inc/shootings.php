@@ -197,6 +197,7 @@ function photovault_create_shooting( $values, $user_id = 0 ) {
 
 	photovault_log_media_event( 'shooting_created', 'success', 0, array( 'shooting_id' => $post_id, 'user_id' => $user_id, 'type' => $type ) );
 	photovault_send_shooting_notifications( $post_id, 'created' );
+	do_action( 'newsletter_campaign_kit_conversion', 'shooting_request', null );
 
 	return (int) $post_id;
 }
