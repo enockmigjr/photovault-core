@@ -185,6 +185,29 @@ function photovault_application_rest_cancel_shooting( WP_REST_Request $request )
 	);
 }
 
+/** Save authenticated frontend presentation preferences. */
+function photovault_application_rest_save_preferences( WP_REST_Request $request ) {
+	$params  = photovault_application_rest_params( $request );
+	$density = sanitize_key( $params['gallery_density'] ?? 'editorial' );
+	$landing = sanitize_key( $params['dashboard_landing'] ?? 'overview' );
+	$density = in_array( $density, array( 'editorial', 'compact' ), true ) ? $density : 'editorial';
+	$landing = in_array( $landing, array( 'overview', 'favorites', 'access', 'bookings' ), true ) ? $landing : 'overview';
+	$user_id = get_current_user_id();
+
+	update_user_meta( $user_id, 'photovault_gallery_density', $density );
+	update_user_meta( $user_id, 'photovault_reduce_motion', ! empty( $params['reduce_motion'] ) ? '1' : '0' );
+	update_user_meta( $user_id, 'photovault_dashboard_landing', $landing );
+
+	return photovault_application_rest_success(
+		__( 'Vos preferences d experience ont ete enregistrees.', 'photovault' ),
+		array(
+			'gallery_density'  => $density,
+			'reduce_motion'    => ! empty( $params['reduce_motion'] ),
+			'dashboard_landing' => $landing,
+		)
+	);
+}
+
 /** Register public application routes. */
 function photovault_register_application_rest_routes() {
 	register_rest_route(
@@ -218,6 +241,15 @@ function photovault_register_application_rest_routes() {
 					'sanitize_callback' => 'absint',
 				),
 			),
+		)
+	);
+	register_rest_route(
+		'photovault/v1',
+		'/account/preferences',
+		array(
+			'methods'             => WP_REST_Server::CREATABLE,
+			'callback'            => 'photovault_application_rest_save_preferences',
+			'permission_callback' => 'is_user_logged_in',
 		)
 	);
 }
