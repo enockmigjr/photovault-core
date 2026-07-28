@@ -187,11 +187,16 @@ function photovault_get_user_access_requests( $user_id = 0, $limit = 30 ) {
 	if ( ! photovault_user_can_read_library( $user_id ) ) {
 		return array();
 	}
+	$user = get_userdata( $user_id );
+	if ( ! $user || ! is_email( $user->user_email ) ) {
+		return array();
+	}
 
 	return $wpdb->get_results(
 		$wpdb->prepare(
-			'SELECT id, subject, collection, status, created_at, updated_at FROM ' . photovault_get_access_requests_table() . ' WHERE user_id = %d ORDER BY created_at DESC LIMIT %d',
+			'SELECT id, subject, collection, status, created_at, updated_at FROM ' . photovault_get_access_requests_table() . ' WHERE user_id = %d OR email = %s ORDER BY created_at DESC LIMIT %d',
 			$user_id,
+			$user->user_email,
 			$limit
 		),
 		ARRAY_A
@@ -206,11 +211,29 @@ function photovault_get_user_access_grants( $user_id = 0, $limit = 30 ) {
 	if ( ! photovault_user_can_read_library( $user_id ) ) {
 		return array();
 	}
+	$user = get_userdata( $user_id );
+	if ( ! $user || ! is_email( $user->user_email ) ) {
+		return array();
+	}
+	$email_hash = photovault_hash_access_email( $user->user_email );
+	if ( photovault_user_has_verified_identity( $user_id ) ) {
+		$wpdb->update(
+			photovault_get_access_grants_table(),
+			array( 'user_id' => $user_id ),
+			array(
+				'user_id'    => 0,
+				'email_hash' => $email_hash,
+			),
+			array( '%d' ),
+			array( '%d', '%s' )
+		);
+	}
 
 	return $wpdb->get_results(
 		$wpdb->prepare(
-			'SELECT id, request_id, folder_id, status, created_at, updated_at FROM ' . photovault_get_access_grants_table() . ' WHERE user_id = %d ORDER BY updated_at DESC LIMIT %d',
+			'SELECT id, request_id, folder_id, status, created_at, updated_at FROM ' . photovault_get_access_grants_table() . ' WHERE user_id = %d OR email_hash = %s ORDER BY updated_at DESC LIMIT %d',
 			$user_id,
+			$email_hash,
 			$limit
 		),
 		ARRAY_A

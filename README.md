@@ -19,6 +19,8 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Gerer les categories de contact public, la notification studio et l'accuse de reception du visiteur.
 - Envoyer les notifications multipart des demandes d'acces: accuse client, alerte studio avec `Reply-To` et decisions approuvee/refusee.
 - Conserver l'approbation d'acces atomique entre creation du grant et mise a jour du statut.
+- Afficher le registre des autorisations effectives dans l'administration, avec revocation et reactivation auditees.
+- Rattacher au dashboard les demandes et droits crees avec l'adresse du compte, meme lorsque la demande precede la connexion.
 - Fournir un espace d'import administrateur avec progression fichier par fichier et edition immediate des metadonnees.
 - Actualiser sans rechargement les validations d'acces, transitions de
   shootings, filtres, paginations et reglages PhotoVault dans `wp-admin`, avec

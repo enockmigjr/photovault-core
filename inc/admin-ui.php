@@ -20,14 +20,15 @@ function photovault_core_enqueue_admin_assets( $hook_suffix ) {
 }
 add_action( 'admin_enqueue_scripts', 'photovault_core_enqueue_admin_assets', 5 );
 
-function photovault_render_admin_pagination( $total, $per_page, $current_page, $base_url ) {
+function photovault_render_admin_pagination( $total, $per_page, $current_page, $base_url, $page_key = 'paged' ) {
 	$total_pages = max( 1, (int) ceil( absint( $total ) / max( 1, absint( $per_page ) ) ) );
 	if ( $total_pages <= 1 ) {
 		return;
 	}
+	$page_key = sanitize_key( $page_key );
 	$links = paginate_links(
 		array(
-			'base'      => add_query_arg( 'paged', '%#%', $base_url ),
+			'base'      => add_query_arg( $page_key ? $page_key : 'paged', '%#%', $base_url ),
 			'format'    => '',
 			'current'   => max( 1, absint( $current_page ) ),
 			'total'     => $total_pages,

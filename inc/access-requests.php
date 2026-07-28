@@ -429,6 +429,113 @@ function photovault_count_access_requests( $status = '' ) {
 		: (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
 }
 
+function photovault_get_access_grant_counts() {
+	global $wpdb;
+
+	$table  = photovault_get_access_grants_table();
+	$rows   = $wpdb->get_results( "SELECT status, COUNT(*) AS total FROM {$table} GROUP BY status", ARRAY_A );
+	$counts = array(
+		'active'  => 0,
+		'revoked' => 0,
+	);
+
+	foreach ( (array) $rows as $row ) {
+		$status = sanitize_key( $row['status'] );
+		if ( isset( $counts[ $status ] ) ) {
+			$counts[ $status ] = absint( $row['total'] );
+		}
+	}
+
+	return $counts;
+}
+
+function photovault_count_access_grants( $status = '' ) {
+	global $wpdb;
+
+	$status = sanitize_key( $status );
+	$table  = photovault_get_access_grants_table();
+
+	return $status
+		? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE status = %s", $status ) )
+		: (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+}
+
+function photovault_get_access_grants( $status = '', $limit = 25, $offset = 0 ) {
+	global $wpdb;
+
+	$grants   = photovault_get_access_grants_table();
+	$requests = photovault_get_access_requests_table();
+	$users    = $wpdb->users;
+	$status   = sanitize_key( $status );
+	$limit    = max( 1, min( 100, absint( $limit ) ) );
+	$offset   = absint( $offset );
+	$where    = '';
+	$params   = array();
+	if ( $status ) {
+		$where    = 'WHERE g.status = %s';
+		$params[] = $status;
+	}
+	$params[] = $limit;
+	$params[] = $offset;
+	$sql      = "SELECT g.*, r.name AS requester_name, r.email AS requester_email,
+			r.collection AS requested_collection, u.display_name AS user_display_name,
+			u.user_email AS account_email
+		FROM {$grants} g
+		LEFT JOIN {$requests} r ON r.id = g.request_id
+		LEFT JOIN {$users} u ON u.ID = g.user_id
+		{$where}
+		ORDER BY g.updated_at DESC, g.id DESC
+		LIMIT %d OFFSET %d";
+
+	return $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A );
+}
+
+function photovault_set_access_grant_status( $grant_id, $status ) {
+	global $wpdb;
+
+	$grant_id = absint( $grant_id );
+	$status   = sanitize_key( $status );
+	if ( ! $grant_id || ! in_array( $status, array( 'active', 'revoked' ), true ) ) {
+		return new WP_Error( 'invalid_grant_status', __( 'Autorisation invalide.', 'photovault' ) );
+	}
+
+	$table = photovault_get_access_grants_table();
+	$grant = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d LIMIT 1", $grant_id ), ARRAY_A );
+	if ( ! $grant ) {
+		return new WP_Error( 'grant_not_found', __( 'Autorisation introuvable.', 'photovault' ) );
+	}
+
+	$updated = $wpdb->update(
+		$table,
+		array(
+			'status'     => $status,
+			'updated_at' => gmdate( 'Y-m-d H:i:s' ),
+		),
+		array( 'id' => $grant_id ),
+		array( '%s', '%s' ),
+		array( '%d' )
+	);
+	if ( false === $updated ) {
+		return new WP_Error( 'grant_update_failed', __( 'L autorisation n a pas pu etre mise a jour.', 'photovault' ) );
+	}
+
+	if ( function_exists( 'photovault_log_media_event' ) ) {
+		photovault_log_media_event(
+			'access_grant_status_updated',
+			'active' === $status ? 'success' : 'warning',
+			0,
+			array(
+				'grant_id'   => $grant_id,
+				'request_id' => absint( $grant['request_id'] ),
+				'folder_id'  => absint( $grant['folder_id'] ),
+				'new_status' => $status,
+			)
+		);
+	}
+
+	return true;
+}
+
 function photovault_register_access_requests_admin_menu() {
 	add_submenu_page(
 		'edit.php?post_type=media_item',
@@ -457,6 +564,14 @@ function photovault_render_access_requests_page() {
 	$counts       = photovault_get_access_request_counts();
 	$total        = photovault_count_access_requests( $status );
 	$requests     = photovault_get_access_requests( $status, $per_page, ( $current_page - 1 ) * $per_page );
+	$grant_status = isset( $_GET['grant_status'] ) ? sanitize_key( wp_unslash( $_GET['grant_status'] ) ) : 'active';
+	if ( ! in_array( $grant_status, array( 'active', 'revoked', '' ), true ) ) {
+		$grant_status = 'active';
+	}
+	$grant_page   = isset( $_GET['grant_page'] ) ? max( 1, absint( $_GET['grant_page'] ) ) : 1;
+	$grant_counts = photovault_get_access_grant_counts();
+	$grant_total  = photovault_count_access_grants( $grant_status );
+	$grants       = photovault_get_access_grants( $grant_status, $per_page, ( $grant_page - 1 ) * $per_page );
 	$folders      = get_terms( array( 'taxonomy' => 'media_folder', 'hide_empty' => false ) );
 	$folders      = is_wp_error( $folders ) ? array() : $folders;
 	?>
@@ -536,6 +651,72 @@ function photovault_render_access_requests_page() {
 			</tbody>
 		</table></div>
 		<?php photovault_render_admin_pagination( $total, $per_page, $current_page, admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=' . rawurlencode( $status ) ) ); ?>
+
+		<hr>
+		<h2><?php esc_html_e( 'Autorisations effectives', 'photovault' ); ?></h2>
+		<p><?php esc_html_e( 'Ce registre represente les droits reellement appliques par la galerie, la visionneuse et les telechargements proteges.', 'photovault' ); ?></p>
+		<nav class="pv-access-status-tabs" aria-label="<?php esc_attr_e( 'Filtrer les autorisations par statut', 'photovault' ); ?>">
+			<?php
+			$grant_filters = array(
+				'active'  => array( __( 'Actives', 'photovault' ), $grant_counts['active'] ),
+				'revoked' => array( __( 'Revoquees', 'photovault' ), $grant_counts['revoked'] ),
+				''        => array( __( 'Toutes', 'photovault' ), array_sum( $grant_counts ) ),
+			);
+			foreach ( $grant_filters as $filter_status => $filter_item ) :
+				$filter_url = add_query_arg(
+					array(
+						'post_type'      => 'media_item',
+						'page'           => 'photovault-access-requests',
+						'request_status' => $status,
+						'grant_status'   => $filter_status,
+					),
+					admin_url( 'edit.php' )
+				);
+				?>
+				<a class="<?php echo $grant_status === $filter_status ? 'is-active' : ''; ?>" href="<?php echo esc_url( $filter_url ); ?>" <?php echo $grant_status === $filter_status ? 'aria-current="page"' : ''; ?>><span><?php echo esc_html( $filter_item[0] ); ?></span><strong><?php echo esc_html( number_format_i18n( $filter_item[1] ) ); ?></strong></a>
+			<?php endforeach; ?>
+		</nav>
+
+		<div class="pv-table-wrap"><table class="widefat fixed striped">
+			<thead><tr>
+				<th><?php esc_html_e( 'Beneficiaire', 'photovault' ); ?></th>
+				<th><?php esc_html_e( 'Collection', 'photovault' ); ?></th>
+				<th><?php esc_html_e( 'Origine', 'photovault' ); ?></th>
+				<th><?php esc_html_e( 'Statut', 'photovault' ); ?></th>
+				<th><?php esc_html_e( 'Mise a jour', 'photovault' ); ?></th>
+				<th><?php esc_html_e( 'Action', 'photovault' ); ?></th>
+			</tr></thead>
+			<tbody>
+				<?php if ( empty( $grants ) ) : ?>
+					<tr><td colspan="6"><?php esc_html_e( 'Aucune autorisation dans ce filtre.', 'photovault' ); ?></td></tr>
+				<?php else : ?>
+					<?php foreach ( $grants as $grant ) : ?>
+						<?php
+						$grant_folder = get_term( absint( $grant['folder_id'] ), 'media_folder' );
+						$grant_email  = $grant['account_email'] ? $grant['account_email'] : $grant['requester_email'];
+						$grant_name   = $grant['user_display_name'] ? $grant['user_display_name'] : $grant['requester_name'];
+						?>
+						<tr>
+							<td><strong><?php echo esc_html( $grant_name ? $grant_name : __( 'Compte non rattache', 'photovault' ) ); ?></strong><?php if ( $grant_email ) : ?><br><a href="mailto:<?php echo esc_attr( $grant_email ); ?>"><?php echo esc_html( $grant_email ); ?></a><?php endif; ?></td>
+							<td><strong><?php echo esc_html( $grant_folder && ! is_wp_error( $grant_folder ) ? $grant_folder->name : __( 'Collection supprimee', 'photovault' ) ); ?></strong></td>
+							<td><?php echo $grant['request_id'] ? esc_html( sprintf( __( 'Demande #%d', 'photovault' ), absint( $grant['request_id'] ) ) ) : esc_html__( 'Attribution directe', 'photovault' ); ?></td>
+							<td><code><?php echo esc_html( $grant['status'] ); ?></code></td>
+							<td><?php echo esc_html( get_date_from_gmt( $grant['updated_at'], 'Y-m-d H:i' ) ); ?></td>
+							<td>
+								<form method="POST" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+									<input type="hidden" name="action" value="photovault_update_access_grant_status">
+									<input type="hidden" name="grant_id" value="<?php echo esc_attr( absint( $grant['id'] ) ); ?>">
+									<input type="hidden" name="grant_status" value="<?php echo esc_attr( $grant_status ); ?>">
+									<?php wp_nonce_field( 'photovault_update_access_grant_status_' . absint( $grant['id'] ) ); ?>
+									<button class="button button-small" name="new_status" value="<?php echo 'active' === $grant['status'] ? 'revoked' : 'active'; ?>" type="submit"><?php echo 'active' === $grant['status'] ? esc_html__( 'Revoquer', 'photovault' ) : esc_html__( 'Reactiver', 'photovault' ); ?></button>
+								</form>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				<?php endif; ?>
+			</tbody>
+		</table></div>
+		<?php photovault_render_admin_pagination( $grant_total, $per_page, $grant_page, admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=' . rawurlencode( $status ) . '&grant_status=' . rawurlencode( $grant_status ) ), 'grant_page' ); ?>
 	</div>
 	<?php
 }
@@ -582,6 +763,23 @@ function photovault_handle_access_request_status_update() {
 			exit;
 		}
 	}
+	if ( 'rejected' === $new_status ) {
+		$revoked = $wpdb->update(
+			photovault_get_access_grants_table(),
+			array(
+				'status'     => 'revoked',
+				'updated_at' => gmdate( 'Y-m-d H:i:s' ),
+			),
+			array( 'request_id' => $request_id ),
+			array( '%s', '%s' ),
+			array( '%d' )
+		);
+		if ( false === $revoked ) {
+			$wpdb->query( 'ROLLBACK' );
+			wp_safe_redirect( admin_url( 'edit.php?post_type=media_item&page=photovault-access-requests&request_status=pending&updated=grant_failed' ) );
+			exit;
+		}
+	}
 
 	$status_updated = $wpdb->update(
 		photovault_get_access_requests_table(),
@@ -610,3 +808,33 @@ function photovault_handle_access_request_status_update() {
 	exit;
 }
 add_action( 'admin_post_photovault_update_access_request_status', 'photovault_handle_access_request_status_update' );
+
+function photovault_handle_access_grant_status_update() {
+	if ( ! photovault_current_user_can( 'photovault_manage_media' ) ) {
+		wp_die( esc_html__( 'Action non autorisee.', 'photovault' ) );
+	}
+
+	$grant_id    = isset( $_POST['grant_id'] ) ? absint( $_POST['grant_id'] ) : 0;
+	$new_status  = isset( $_POST['new_status'] ) ? sanitize_key( wp_unslash( $_POST['new_status'] ) ) : '';
+	$grant_filter = isset( $_POST['grant_status'] ) ? sanitize_key( wp_unslash( $_POST['grant_status'] ) ) : 'active';
+	check_admin_referer( 'photovault_update_access_grant_status_' . $grant_id );
+
+	$result = photovault_set_access_grant_status( $grant_id, $new_status );
+	if ( is_wp_error( $result ) ) {
+		wp_die( esc_html( $result->get_error_message() ) );
+	}
+
+	wp_safe_redirect(
+		add_query_arg(
+			array(
+				'post_type'    => 'media_item',
+				'page'         => 'photovault-access-requests',
+				'grant_status' => in_array( $grant_filter, array( 'active', 'revoked' ), true ) ? $grant_filter : '',
+				'updated'      => 'grant_updated',
+			),
+			admin_url( 'edit.php' )
+		)
+	);
+	exit;
+}
+add_action( 'admin_post_photovault_update_access_grant_status', 'photovault_handle_access_grant_status_update' );

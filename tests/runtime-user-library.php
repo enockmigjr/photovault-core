@@ -89,7 +89,12 @@ try {
 	photovault_user_library_runtime_assert( ! is_wp_error( $request_id ), 'Runtime access request failed.' );
 	$grant_id = photovault_create_access_grant_from_request( $request_id );
 	photovault_user_library_runtime_assert( ! is_wp_error( $grant_id ), 'Runtime access grant failed.' );
+	$wpdb->update( photovault_get_access_requests_table(), array( 'user_id' => 0 ), array( 'id' => $request_id ), array( '%d' ), array( '%d' ) );
+	$wpdb->update( photovault_get_access_grants_table(), array( 'user_id' => 0 ), array( 'id' => $grant_id ), array( '%d' ), array( '%d' ) );
 	photovault_user_library_runtime_assert( 1 === count( photovault_get_user_access_requests( $user_ids[0] ) ) && 1 === count( photovault_get_user_access_grants( $user_ids[0] ) ), 'Personal access data was not resolved.' );
+	photovault_user_library_runtime_assert( true === photovault_set_access_grant_status( $grant_id, 'revoked' ), 'Grant revocation failed.' );
+	photovault_user_library_runtime_assert( 'revoked' === photovault_get_user_access_grants( $user_ids[0] )[0]['status'], 'Revoked grant was not visible in the dashboard.' );
+	photovault_user_library_runtime_assert( true === photovault_set_access_grant_status( $grant_id, 'active' ), 'Grant reactivation failed.' );
 
 	wp_set_current_user( $user_ids[1] );
 	photovault_user_library_runtime_assert( array() === photovault_get_user_favorite_ids( $user_ids[0] ), 'Another user could read the owner library.' );
