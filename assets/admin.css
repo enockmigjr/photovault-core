@@ -199,6 +199,39 @@
 	to { transform: rotate(360deg); }
 }
 
+.pv-admin-runtime-toast {
+	position: fixed;
+	z-index: 100100;
+	right: 24px;
+	bottom: 24px;
+	display: flex;
+	max-width: min(420px, calc(100vw - 32px));
+	align-items: center;
+	gap: 16px;
+	padding: 14px 16px;
+	border-left: 4px solid #2271b1;
+	background: #fff;
+	box-shadow: 0 12px 36px rgba(0, 0, 0, .2);
+	color: #1d2327;
+}
+
+.pv-admin-runtime-toast.is-success {
+	border-left-color: #00a32a;
+}
+
+.pv-admin-runtime-toast.is-error {
+	border-left-color: #d63638;
+}
+
+.pv-admin-runtime-toast button {
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font-size: 20px;
+	line-height: 1;
+	cursor: pointer;
+}
+
 @media (max-width: 782px) {
 	.pv-admin .pv-admin-filters {
 		align-items: stretch;
