@@ -5,6 +5,21 @@
 		return document.querySelector('.pv-admin');
 	}
 
+	function progress(busy) {
+		let bar = document.querySelector('[data-pv-admin-progress]');
+		if (!bar) {
+			bar = document.createElement('div');
+			bar.className = 'pv-admin-progress';
+			bar.dataset.pvAdminProgress = '';
+			bar.setAttribute('role', 'progressbar');
+			bar.setAttribute('aria-label', 'Operation en cours');
+			document.body.appendChild(bar);
+		}
+		window.requestAnimationFrame(function() {
+			bar.classList.toggle('is-active', busy);
+		});
+	}
+
 	function setBusy(form, busy) {
 		form.toggleAttribute('aria-busy', busy);
 		form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function(button) {
@@ -50,28 +65,33 @@
 
 	async function refresh(url, options, historyMode) {
 		const current = surface();
-		const response = await fetch(url, Object.assign({
-			credentials: 'same-origin',
-			headers: { 'X-Requested-With': 'XMLHttpRequest' }
-		}, options || {}));
-		const html = await response.text();
-		const parsed = new DOMParser().parseFromString(html, 'text/html');
-		const next = parsed.querySelector('.pv-admin');
-		if (!response.ok || !current || !next) {
-			throw new Error('L ecran PhotoVault n a pas pu etre actualise.');
-		}
+		progress(true);
+		try {
+			const response = await fetch(url, Object.assign({
+				credentials: 'same-origin',
+				headers: { 'X-Requested-With': 'XMLHttpRequest' }
+			}, options || {}));
+			const html = await response.text();
+			const parsed = new DOMParser().parseFromString(html, 'text/html');
+			const next = parsed.querySelector('.pv-admin');
+			if (!response.ok || !current || !next) {
+				throw new Error('L ecran PhotoVault n a pas pu etre actualise.');
+			}
 
-		current.replaceWith(next);
-		if (parsed.title) document.title = parsed.title;
-		if (historyMode === 'push') window.history.pushState({ photovaultAdmin: true }, '', response.url);
-		if (historyMode === 'replace') window.history.replaceState({ photovaultAdmin: true }, '', response.url);
-		const message = next.querySelector('.notice p, .updated p, .error p');
-		const heading = next.querySelector('h1');
-		if (heading) {
-			heading.tabIndex = -1;
-			heading.focus({ preventScroll: true });
+			current.replaceWith(next);
+			if (parsed.title) document.title = parsed.title;
+			if (historyMode === 'push') window.history.pushState({ photovaultAdmin: true }, '', response.url);
+			if (historyMode === 'replace') window.history.replaceState({ photovaultAdmin: true }, '', response.url);
+			const message = next.querySelector('.notice p, .updated p, .error p');
+			const heading = next.querySelector('h1');
+			if (heading) {
+				heading.tabIndex = -1;
+				heading.focus({ preventScroll: true });
+			}
+			return message ? message.textContent.trim() : 'Modification enregistree.';
+		} finally {
+			progress(false);
 		}
-		return message ? message.textContent.trim() : 'Modification enregistree.';
 	}
 
 	document.addEventListener('submit', async function(event) {
@@ -88,12 +108,14 @@
 			let historyMode = 'replace';
 			const payload = submitterPayload(form, event.submitter);
 			if (form.matches('[data-pv-admin-settings]')) {
+				progress(true);
 				const response = await fetch(url, {
 					method: method,
 					credentials: 'same-origin',
 					headers: { 'X-Requested-With': 'XMLHttpRequest' },
 					body: payload
 				});
+				progress(false);
 				if (!response.ok) throw new Error('Les reglages n ont pas pu etre enregistres.');
 				setBusy(form, false);
 				toast('Reglages enregistres.', true);
@@ -108,6 +130,7 @@
 			const message = await refresh(url, options, historyMode);
 			toast(message, true);
 		} catch (error) {
+			progress(false);
 			setBusy(form, false);
 			toast(error.message || 'L operation n a pas pu etre terminee.', false);
 		}

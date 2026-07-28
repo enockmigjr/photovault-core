@@ -22,7 +22,7 @@ PhotoVault Core contient la logique metier media de PhotoVault: CPT, taxonomies,
 - Fournir un espace d'import administrateur avec progression fichier par fichier et edition immediate des metadonnees.
 - Actualiser sans rechargement les validations d'acces, transitions de
   shootings, filtres, paginations et reglages PhotoVault dans `wp-admin`, avec
-  historique navigateur et fallback WordPress.
+  historique navigateur, progression visible et fallback WordPress.
 
 ## Capabilities
 
